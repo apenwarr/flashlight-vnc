@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+	Copyright (C) 2008 Marco Fucci
+
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Library General Public
+	License as published by the Free Software Foundation; either
+	version 2 of the License, or (at your option) any later version.
+	
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Library General Public License for more details.
+	
+	You should have received a copy of the GNU Library General Public
+	License along with this library; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+	
+	Contact : mfucci@gmail.com
+
+-->
+
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml" title="Connection">
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+		]]>
+	</mx:Script>
+
+	<mx:String id="host" />
+	<mx:String id="port" />
+	<mx:String id="password" />
+	<mx:String id="securityPort" />
+	<mx:Boolean id="canceled" />
+	
+	<mx:Binding source="hostField.text" destination="host" />
+	<mx:Binding source="portField.text" destination="port" />
+	<mx:Binding source="passwordField.text" destination="password" />
+	<mx:Binding source="securityPortField.text" destination="securityPort" />
+	
+    <mx:HBox width="100%">
+        <mx:Label text="Host: "/>
+        <mx:TextInput id="hostField" width="100%" text="localhost"/>
+    </mx:HBox>
+
+    <mx:HBox width="100%">
+        <mx:Label text="Port: "/>
+        <mx:TextInput id="portField" width="100%" text="5900"/>
+    </mx:HBox>
+    
+     <mx:HBox width="100%">
+        <mx:Label text="Password (if any): "/>
+        <mx:TextInput id="passwordField" width="100%" text="wizhelp" displayAsPassword="true" />
+    </mx:HBox>
+    
+     <mx:HBox width="100%">
+        <mx:Label text="Security policy port: "/>
+        <mx:TextInput id="securityPortField" width="100%" text="5950" />
+    </mx:HBox>
+    
+    <mx:HBox horizontalAlign="right" width="100%">
+        <mx:Button label="OK" click="canceled=false; PopUpManager.removePopUp(this); this.dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
+        <mx:Button label="Cancel" click="canceled=true; PopUpManager.removePopUp(this); this.dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
+    </mx:HBox>
+</mx:TitleWindow>  

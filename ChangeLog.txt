@@ -1,0 +1,13 @@
+10/06/08: v1.0.0
+First release
+
+Features:
+_ connect to a VNC server in Tight
+_ play a recorded VNC session
+
+Technical features:
+	_ tight encoding support
+	_ raw encoding support
+	_ copyRect encoding support
+	_ richCursor pseudo-encoding support
+	_ cursorPos pseudo-encoding support

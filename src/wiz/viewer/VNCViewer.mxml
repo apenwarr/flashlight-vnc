@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+	Copyright (C) 2008 Marco Fucci
+
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Library General Public
+	License as published by the Free Software Foundation; either
+	version 2 of the License, or (at your option) any later version.
+	
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Library General Public License for more details.
+	
+	You should have received a copy of the GNU Library General Public
+	License along with this library; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+	
+	Contact : mfucci@gmail.com
+
+-->
+
+<!--
+	This is the VNC Player / Viewer wrapped in a Flex component.
+-->
+
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml"
+		xmlns:fvnc="com.wizhelp.fvnc.*"
+		paddingLeft="10" paddingRight="10" paddingTop="10" xmlns:viewer="wiz.viewer.*"
+		currentState="{debug ? 'debugState' : null}">
+		
+		<mx:Style>
+			Application.fullScreen {
+				padding-left: 0;
+				padding-top: 0;
+				padding-right: 0;
+				padding-bottom: 0;
+			}
+			
+			Image.viewer {
+				horizontal-align: center;
+				vertical-align: center;
+			}
+			
+			Button.actionButton {
+				text-align: left;
+				padding-left: 4;
+				padding-right: 4;
+			}
+		</mx:Style>
+		
+		<mx:Script>
+			<![CDATA[
+				import mx.events.CloseEvent;
+				import flash.system.fscommand;
+				import mx.events.StateChangeEvent;
+				import mx.events.FlexEvent;
+				import mx.binding.utils.BindingUtils;
+				import mx.managers.PopUpManager;
+				import mx.events.MenuEvent;
+				import mx.managers.CursorManager;
+				import mx.core.Container;
+				import mx.core.UIComponent;
+				import mx.core.Application;
+				import mx.events.ItemClickEvent;
+				
+				[Embed(source="/assets/fitToScreen.png")]
+				[Bindable]
+				private var fitToScreenIcon:Class;
+				
+				[Embed(source="/assets/fitToWindow.png")]
+				[Bindable]
+				private var fitToWindowIcon:Class;
+				
+				[Embed(source="/assets/cursorEnlarge.png")]
+				[Bindable]
+				private var cursorEnlargeIcon:Class;
+				
+				[Embed(source="/assets/cursorReduce.png")]
+				[Bindable]
+				private var cursorReduceIcon:Class;
+				
+				[Embed(source="/assets/play.png")]
+				[Bindable]
+				private var playIcon:Class;
+				
+				[Embed(source="/assets/pause.png")]
+				[Bindable]
+				private var pauseIcon:Class;
+				
+				[Embed(source="/assets/rewind.png")]
+				[Bindable] private var rewindIcon:Class;
+				
+				[Embed(source="/assets/zoom.png")]
+				[Bindable] private var zoomIcon:Class;
+				
+				[Bindable] private var zoom:Number = 1.0;
+				[Bindable] private var isFullScreen:Boolean = false;
+				[Bindable] private var followMouse:Boolean = true;
+				[Bindable] private var mouseOnViewer:Boolean = false;
+				
+				private var autoZoom:Boolean = true;
+				
+				private function updateZoom(event:MenuEvent):void {
+					if (event.item.@value == 0) {
+						autoZoom = true;
+						viewer.percentWidth=100;
+    					viewer.percentHeight=100;
+    					zoom = 1.0;
+					} else {
+						autoZoom = false;
+						viewer.percentWidth=0;
+    					viewer.percentHeight=0;
+    					zoom = event.item.@value;
+					}
+				}
+		    	
+		    	private function switchViewHandler(event:Event):void {
+		    		if (isFullScreen) {
+		    			toggleFullScreen();
+		    		} else {
+		    			toggleFullScreen();
+		    		}
+		        }
+		        
+		        private var oldApplicationChilds:Array = new Array();
+            
+	            private function toggleFullScreen():void {
+            		var app:Application = Application(Application.application);
+	            	var i:int;
+	            	
+	            	if (isFullScreen) {
+	            		isFullScreen = false;
+	            		
+	            		Application.application.stage.removeEventListener(FullScreenEvent.FULL_SCREEN,switchViewHandler);
+						
+						moveComponent(fullScreenView,app,viewStack);
+						moveComponent(viewer,fullScreenView,viewerContainer);
+						moveComponent(switchViewBar,switchViewContainerFullScreen,switchViewContainer);
+						
+	            		for (i=0 ; i<oldApplicationChilds.length ; i++) {
+    						app.addChildAt(oldApplicationChilds.pop(),i);
+    					}
+    					
+    					if (!autoZoom) {
+							viewer.percentWidth=0;
+	    					viewer.percentHeight=0;
+	    				}
+    					
+		    			Application.application.styleName=undefined;
+		    			
+		    			//systemManager.stage.displayState="normal";
+		    			//Application.application.stage.displayState="normal";
+		    			Application.application.stage.displayState = StageDisplayState.NORMAL;
+		    			//fscommand('fullscreen','false');
+		    			
+		    			PopUpManager.removePopUp(switchViewContainerFullScreen);
+	            	} else {
+	            		isFullScreen = true;
+	            		
+	            		for (i=app.numChildren-1 ; i>=0 ; i--) {
+	            			oldApplicationChilds.push(app.getChildAt(i));
+    						app.removeChildAt(i);
+    					}
+    					
+						fullScreenView.setVisible(true);
+    					
+						moveComponent(viewer,viewerContainer,fullScreenView);
+						moveComponent(switchViewBar,switchViewContainer,switchViewContainerFullScreen);
+    					moveComponent(fullScreenView,viewStack,app);
+    					
+						viewer.percentWidth=100;
+    					viewer.percentHeight=100;
+    					
+		    			Application.application.styleName="fullScreen";
+	            		
+	            		Application.application.stage.displayState = StageDisplayState.FULL_SCREEN;
+	            		//systemManager.stage.displayState="fullScreen";
+	            		//Application.application.stage.displayState="fullScreen";
+	            		//fscommand('fullscreen','true');
+	            		
+	            		PopUpManager.addPopUp(switchViewContainerFullScreen,this,false);
+	            		PopUpManager.centerPopUp(switchViewContainerFullScreen);
+	            		/*switchViewContainerFullScreen.move(
+	            			(Application.application.stage.fullScreenWidth-switchViewContainerFullScreen.width)/2,
+	            			Application.application.stage.fullScreenHeight-30-switchViewContainerFullScreen.height);*/
+	            		
+	            		Application.application.stage.addEventListener(FullScreenEvent.FULL_SCREEN,switchViewHandler);
+	            	}
+	            }
+	            
+	           private function moveComponent(comp:UIComponent, src:Container, dst:Container):void {
+	           		src.removeChild(comp);
+            		src.validateNow();
+            		dst.addChildAt(comp,0);
+	           }
+            
+	           private function handleRemoteMouseMove(event:MouseEvent):void {
+		        	if (!isFullScreen && !autoZoom && (!mouseOnViewer || viewer.viewOnly)) {
+			        	var newValue:int;
+		        		if (viewerContainer.horizontalScrollBar!=null) {
+			        		var viewWidth:int = viewer.width - viewerContainer.maxHorizontalScrollPosition;
+			        		var marginX:int = viewWidth/4;
+			        		var mouseX:int = event.localX*viewer.scaleX;
+			        		
+			        		if (mouseX<viewerContainer.horizontalScrollPosition+marginX 
+			        			&& viewerContainer.horizontalScrollPosition > 0) {
+		        				newValue = mouseX-marginX;
+		        				viewerContainer.horizontalScrollPosition = Math.max(newValue,0);
+		        			}
+			        		
+			        		if (mouseX>viewerContainer.horizontalScrollPosition+viewWidth-marginX) {
+		        				newValue = mouseX+marginX-viewWidth;
+		        				viewerContainer.horizontalScrollPosition = Math.min(newValue,viewerContainer.maxHorizontalScrollPosition);
+		        			}
+			        	}
+		        			
+		        		if (viewerContainer.verticalScrollBar!=null) {
+			        		var viewHeight:int = viewer.height - viewerContainer.maxVerticalScrollPosition;
+			        		var marginY:int = viewHeight/4;
+			        		var mouseY:int = event.localY*viewer.scaleY;
+		        			
+			        		if (mouseY<viewerContainer.verticalScrollPosition+marginY 
+			        			&& viewerContainer.verticalScrollPosition > 0) {
+		        				newValue = mouseY-marginY;
+		        				viewerContainer.verticalScrollPosition = Math.max(newValue,0);
+		        			}
+			        		
+			        		if (mouseY>viewerContainer.verticalScrollPosition+viewHeight-marginY ) {
+		        				newValue = mouseY+marginY-viewHeight;
+		        				viewerContainer.verticalScrollPosition = Math.min(newValue,viewerContainer.maxVerticalScrollPosition);
+		        			}
+			        	}
+		        	}
+		        }
+		        
+		         private function handleMouseMove(event:Event):void {
+		       
+		        	if (!isFullScreen && !autoZoom && mouseOnViewer) {
+			        	var newValue:int;
+		       			var moved:Boolean = false;
+		       			var moveX:int=0;
+		       			var moveY:int=0;
+		        		if (viewerContainer.horizontalScrollBar!=null) {
+			        		var viewWidth:Number = viewer.width - viewerContainer.maxHorizontalScrollPosition;
+			        		var marginXLeft:Number = viewWidth*viewerContainer.horizontalScrollPosition/(4*viewer.width) + viewWidth/8;
+			        		var horizontalScrollPositionSym:Number = viewer.width-viewWidth-viewerContainer.horizontalScrollPosition;
+			        		var marginXRight:Number = viewWidth*horizontalScrollPositionSym/(4*viewer.width) + viewWidth/8;
+			        		var mouseX:Number = event.target.mouseX*viewer.scaleX;
+			        		var mouseXSym:Number = viewer.width - mouseX;
+			        		
+			        		if (mouseX<viewerContainer.horizontalScrollPosition+marginXLeft 
+			        			&& viewerContainer.horizontalScrollPosition > 0) {
+		        				newValue = (mouseX-viewWidth/8)/(1+viewWidth/(4*viewer.width))-2;
+		        				newValue =  Math.max(newValue,0);
+		        				moveX = newValue - viewerContainer.horizontalScrollPosition;
+		        				viewerContainer.horizontalScrollPosition = newValue;
+		        				moved=true;
+		        			}
+			        		
+			        		if (mouseXSym<horizontalScrollPositionSym+marginXRight
+			        			&& horizontalScrollPositionSym > 0) {
+		        				newValue = (mouseXSym-viewWidth/8)/(1+viewWidth/(4*viewer.width))-2;
+		        				newValue = viewer.width-viewWidth-newValue;
+		        				newValue = Math.min(newValue,viewerContainer.maxHorizontalScrollPosition);
+		        				moveX = newValue - viewerContainer.horizontalScrollPosition;
+		        				viewerContainer.horizontalScrollPosition = newValue;
+		        				moved=true;
+		        			}
+			        	}
+		        			
+		        		if (viewerContainer.verticalScrollBar!=null) {
+			        		var viewHeight:Number = viewer.height - viewerContainer.maxVerticalScrollPosition;
+			        		var marginYTop:Number = viewHeight*viewerContainer.verticalScrollPosition/(4*viewer.height) + viewHeight/8;
+			        		var verticalScrollPositionSym:Number = viewer.height-viewHeight-viewerContainer.verticalScrollPosition;
+			        		var marginYBottom:Number = viewHeight*verticalScrollPositionSym/(4*viewer.height) + viewHeight/8;
+			        		var mouseY:Number = event.target.mouseY*viewer.scaleY;
+			        		var mouseYSym:Number = viewer.height - mouseY;
+		        			
+			        		if (mouseY<viewerContainer.verticalScrollPosition+marginYTop 
+			        			&& viewerContainer.verticalScrollPosition > 0) {
+		        				newValue = (mouseY-viewHeight/8)/(1+viewHeight/(4*viewer.height))-1;
+		        				newValue = Math.max(newValue,0);
+		        				moveY = newValue - viewerContainer.verticalScrollPosition;
+		        				viewerContainer.verticalScrollPosition = newValue;
+		        				moved=true;
+		        			}
+			        		
+			        		if (mouseYSym<verticalScrollPositionSym+marginYBottom
+			        			&& verticalScrollPositionSym > 0) {
+		        				newValue = (mouseYSym-viewHeight/8)/(1+viewHeight/(4*viewer.height))-2;
+		        				newValue = viewer.height-viewHeight-newValue;
+		        				newValue = Math.min(newValue,viewerContainer.maxVerticalScrollPosition);
+		        				moveY = newValue - viewerContainer.verticalScrollPosition;
+		        				viewerContainer.verticalScrollPosition = newValue;
+		        				moved=true;
+		        			}
+			        	}
+			        	
+			         	if (moved) {
+							var currentX:int = viewer.content.mouseX;
+							var currentY:int = viewer.content.mouseY;
+							var evenMove:MouseEvent = new MouseEvent(MouseEvent.MOUSE_MOVE);
+							evenMove.localX = currentX + moveX*viewer.content.scaleX;
+							evenMove.localY = currentY + moveY*viewer.content.scaleY;
+							viewer.content.dispatchEvent(evenMove);
+			        	}
+		        	}
+		        }
+		        
+		        [Bindable] private var connected:Boolean = false;
+		        private var connectionWindow:ConnectionWindow;
+		        
+		        private function handleConnect():void {
+		        	if (connected) {
+		        		viewer.disconnect();
+		        		connected=false;
+		        	} else {
+		        		connectionWindow = ConnectionWindow(PopUpManager.createPopUp(this,ConnectionWindow,true));
+		        		PopUpManager.centerPopUp(connectionWindow);
+		        		connectionWindow.addEventListener(CloseEvent.CLOSE,handleConnectionWindow);
+		        	}
+		        }
+		        
+		        private function handleConnectionWindow(event:CloseEvent):void {
+		        	if (!connectionWindow.canceled) {
+		        		viewer.host = connectionWindow.host;
+		        		viewer.port = int(connectionWindow.port);
+		        		viewer.password = connectionWindow.password;
+		        		viewer.securityPort = int(connectionWindow.securityPort);
+		        		viewer.connect();
+		        		connected=true;
+		        	}
+		        	connectionWindow.removeEventListener(CloseEvent.CLOSE,handleConnectionWindow);
+		        }
+		        
+				[Bindable] private var playing:Boolean = false;
+		        private function handlePlay():void {
+		        	if (playing) {
+		        		playing = false;
+		        		viewer.pause();
+		        	} else {
+		        		playing = true;
+		        		viewer.play();
+		        	}
+		        }
+			]]>
+		</mx:Script>
+	
+	<mx:String id="fbsFileUrl" />
+	<mx:String id="host" />
+	<mx:int id="port" />
+	<mx:int id="securityPort" />
+	<mx:Boolean id="viewerMode" />
+	<mx:Boolean id="debug" />
+	
+	<mx:states>
+		<mx:State name="debugState">
+			<mx:AddChild relativeTo="{divBox}">
+				<mx:Box height="0" width="100%"  >
+				 	<mx:Text id="out" width="100%" height="100%"/>
+				</mx:Box>
+			</mx:AddChild>
+			<mx:SetProperty target="{mainView}" name="height" value="100%" />
+		</mx:State>
+	</mx:states>
+	
+	<mx:ViewStack id="viewStack" width="100%" height="100%" creationPolicy="all">	
+		<mx:VDividedBox id="divBox">
+			<mx:VBox id="mainView" width="100%" height="100%">
+				<mx:Box id="viewerContainer" width="100%" height="100%" backgroundColor="black" borderStyle="inset" clipContent="true">
+					<fvnc:FVNC id="viewer"
+						host="{host}"
+						port="{port}"
+						securityPort="{securityPort}"
+						password="wizhelp"
+						file="{fbsFileUrl}"
+						viewOnly="false"
+						output="{debug ? out : null}"
+						remoteMouseMove="handleRemoteMouseMove(event)"
+						styleName="viewer" width="100%" height="100%"
+						scaleContent="true" scaleX="{zoom}" scaleY="{zoom}"
+						enterFrame="handleMouseMove(event)"
+						rollOver="mouseOnViewer=true;"
+						rollOut="mouseOnViewer=false;"
+						playbackEnd="playing=false;"
+						/>
+				</mx:Box>
+				
+				<mx:HBox horizontalAlign="right" width="100%">
+					<mx:ViewStack width="100%" selectedIndex="{viewerMode ? 1 : 0}">
+						<mx:HBox width="100%">
+							<mx:Button icon="{playing ? pauseIcon : playIcon}" click="handlePlay()" styleName="actionButton" width="24" />
+							<viewer:PlayerBar width="100%" fileLoader="{viewer.fbsLoader}" playPosition="{viewer.playPosition}"/>
+						</mx:HBox>
+						<mx:HBox width="100%">
+							<mx:Button label="{connected ? 'Disconnected' : 'Connect'}" click="handleConnect();" />
+						</mx:HBox>
+					</mx:ViewStack>
+					
+	            	<mx:PopUpMenuButton id="zoomSelector" itemClick="updateZoom(event)" labelField="@label" icon="{zoomIcon}">
+	            		<mx:dataProvider>
+	            			<mx:XMLList xmlns="">
+	            				<item label="Auto" value="0" />
+	            				<item label="150%" value="1.5" />
+	            				<item label="100%" value="1" />
+	            				<item label="75%" value="0.75" />
+	            				<item label="50%" value="0.5" />
+	            			</mx:XMLList>
+	            		</mx:dataProvider>
+	            	</mx:PopUpMenuButton>
+					<mx:Box id="switchViewContainer">
+						<mx:Box id="switchViewBar" direction="horizontal">
+							<mx:Button icon="{viewer.bigCursor ? cursorReduceIcon : cursorEnlargeIcon}" click="viewer.bigCursor  = !viewer.bigCursor;" styleName="actionButton" width="24" />
+							<mx:Button icon="{isFullScreen ? fitToWindowIcon : fitToScreenIcon}" click="switchViewHandler(event)" styleName="actionButton" width="24"/>
+				        </mx:Box>
+					</mx:Box>
+				</mx:HBox>
+			</mx:VBox>
+		</mx:VDividedBox>
+		
+		
+		<mx:Canvas id="fullScreenView" backgroundColor="black" width="100%" height="100%">
+			<mx:TitleWindow id="switchViewContainerFullScreen" title="ToolBox" alpha="0.8" verticalAlign="bottom" horizontalAlign="center" />
+		</mx:Canvas>
+	</mx:ViewStack>				
+</mx:VBox>

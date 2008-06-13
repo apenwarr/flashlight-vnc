@@ -1,0 +1,6 @@
+_ improve replay of VNC session
+_ extract pseudo-threads algorithm in a separate class
+_ optimize further code by using native flash function
+_ add support for indexed colors
+
+If you see some other features that are missing, send me an email at mfucci@gmail.com: if I don't plan to implement them myself, I will at least add them them here
