@@ -29,9 +29,9 @@
 	xmlns:wiz="com.wizhelp.flashlight.viewer.flex.*" backgroundAlpha="0">
 	
 	<wiz:ViewerFlex  width="100%" height="100%"
-		debug="{parameters.debug ? parameters.debug : true}"
+		debug="{parameters.debug ? parameters.debug : false}"
 		displayConnectDialog="{parameters.displayConnectDialog ? parameters.displayConnectDialog : true}"
-		host="{parameters.host ? parameters.host : '192.168.0.14'}"
+		host="{parameters.host ? parameters.host : 'localhost'}"
 		port="{parameters.port ? parameters.port : 5900}"
 		password="{parameters.password ? parameters.password : 'wizhelp'}"
 		securityPort="{parameters.securityPort ? parameters.securityPort : -1}"/>
