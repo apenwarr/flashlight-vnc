@@ -17,9 +17,8 @@
     </sourceAttachmentPath>
   </compiler>
   <applications>
-    <application path="WizPlayer.mxml"/>
     <application path="WizViewer.mxml"/>
-    <application path="ThreadTest.mxml"/>
+    <application path="WizPlayer.mxml"/>
   </applications>
   <modules/>
   <buildCSSFiles/>

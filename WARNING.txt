@@ -1,6 +1,0 @@
-DON'T START HACKING WITH THOSE SOURCES
-
-Sources will be completely refactored in the next version, and you won't be able to upgrade them.
-
-Contact me first and tell me what you are planning to do.
-I take it into account during the refactoring: mfucci@gmail.com

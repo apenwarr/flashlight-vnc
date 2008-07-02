@@ -26,12 +26,13 @@
 -->
 
 <mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical"
-	xmlns:wiz="wiz.viewer.*" backgroundAlpha="0">
+	xmlns:wiz="com.wizhelp.flashlight.viewer.flex.*" backgroundAlpha="0">
 	
-	<wiz:VNCViewer  width="100%" height="100%"
-		viewerMode="true"
-		debug="false"
-		host="{parameters.host ? parameters.host : -1}"
+	<wiz:ViewerFlex  width="100%" height="100%"
+		debug="{parameters.debug ? parameters.debug : true}"
+		displayConnectDialog="{parameters.displayConnectDialog ? parameters.displayConnectDialog : true}"
+		host="{parameters.host ? parameters.host : '192.168.0.14'}"
 		port="{parameters.port ? parameters.port : 5900}"
+		password="{parameters.password ? parameters.password : 'wizhelp'}"
 		securityPort="{parameters.securityPort ? parameters.securityPort : -1}"/>
 </mx:Application>

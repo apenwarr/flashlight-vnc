@@ -26,11 +26,13 @@
 -->
 
 <mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical"
-	xmlns:wiz="wiz.viewer.*" backgroundAlpha="0">
+	xmlns:wiz="com.wizhelp.flashlight.player.flex.*" backgroundAlpha="0"
+	paddingTop="0"
+	paddingBottom="0"
+	paddingRight="0"
+	paddingLeft="0">
 	
-	<wiz:VNCViewer  width="100%" height="100%"
-		viewerMode="false"
-		debug="false"
-		fbsFileUrl="{parameters.file ? parameters.file : 'vncRecord.fbs'}"
-		securityPort="{parameters.securityPort ? parameters.securityPort : -1}"/>
+	<wiz:PlayerFlex width="100%" height="100%"
+		debug="{parameters.debug ? parameters.debug : false}"
+		videoUrl="{parameters.file ? parameters.file : 'vncRecord.fbs'}"/>		
 </mx:Application>
