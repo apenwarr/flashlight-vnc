@@ -87,6 +87,7 @@ if ( hasProductInstall && !hasRequestedVersion ) {
 			"bgcolor", "${bgcolor}",
 			"name", "${application}",
 			"allowScriptAccess","sameDomain",
+			"allowFullscreen","true",
 			"type", "application/x-shockwave-flash",
 			"pluginspage", "http://www.adobe.com/go/getflashplayer"
 	);
@@ -106,12 +107,14 @@ if ( hasProductInstall && !hasRequestedVersion ) {
 			<param name="quality" value="high" />
 			<param name="bgcolor" value="${bgcolor}" />
 			<param name="allowScriptAccess" value="sameDomain" />
+			<param name="allowFullscreen" value="true" />
 			<embed src="${swf}.swf" quality="high" bgcolor="${bgcolor}"
 				width="${width}" height="${height}" name="${application}" align="middle"
 				play="true"
 				loop="false"
 				quality="high"
 				allowScriptAccess="sameDomain"
+				allowFullscreen="true"
 				type="application/x-shockwave-flash"
 				pluginspage="http://www.adobe.com/go/getflashplayer">
 			</embed>
