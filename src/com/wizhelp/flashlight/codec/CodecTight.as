@@ -32,8 +32,8 @@ package com.wizhelp.flashlight.codec
 	import com.wizhelp.flashlight.zlib.InflaterFZlib;
 	import com.wizhelp.flashlight.zlib.InflaterFlash10;
 	import com.wizhelp.utils.BufferPool;
-	import com.wizhelp.utils.Logger;
 	import com.wizhelp.utils.Thread;
+	import com.wizhelp.utils.ThreadFunction;
 	
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
@@ -45,9 +45,12 @@ package com.wizhelp.flashlight.codec
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	
+	import mx.logging.ILogger;
+	import mx.logging.Log;
+	
 	public class CodecTight extends DataHandler
 	{
-		private var logger:Logger = new Logger(this);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.codec.CodecTight');
 		
 		public static const TightMinToCompress:int  = 12;
 		public static const TightExplicitFilter:int = 0x04;
@@ -72,8 +75,9 @@ package com.wizhelp.flashlight.codec
 		
 		private var rfbReader:RFBReader;
 		private var vnc:VNCHandler;
+		private var async:Boolean;
 		
-		public function CodecTight(vnc:VNCHandler, rfbReader:RFBReader) {
+		public function CodecTight(vnc:VNCHandler, rfbReader:RFBReader, async:Boolean) {
 			super(
 				1,
 					function(stream:IDataInput):void {
@@ -90,36 +94,42 @@ package com.wizhelp.flashlight.codec
 						
 						switch (tightCode) {
 							case TightJpeg :
-								//logger.log("TightJpeg");
+								//logger.debug("TightJpeg");
 								rfbReader.rfbStack.unshift(
 									handleTightJpegLen,
 									handleTightJpegData);
 								break;
 							case TightFill :
-								//logger.log("TightFill");
+								//logger.debug("TightFill");
 								handleTightFill.bytesNeeded = bytesPerPixel;
 								rfbReader.rfbStack.unshift(handleTightFill);
 								break;
 							default :
-								//logger.log("Default");
+								//logger.debug("Default");
 								numColors = 0;
 								useGradient = false;
 								rowSize = rfbReader.updateRectW;
 								rfbReader.rfbStack.unshift(handleTightData);
 								if (tightCode & TightExplicitFilter) {
+									//logger.debug("TightExplicitFilter");
 									rfbReader.rfbStack.unshift(handleTightFilter);
 								}
 						}
-					});
+						//logger.debug("<< CodecTight");
+					},
+					this);
 				
 			this.rfbReader = rfbReader;
 			this.vnc = vnc;
 			this.useFlash10Optimization = String(Capabilities.version.split(' ')[1]).substr(0,2) == "10";
+			this.async = async;
 		}
 		
 		private var handleTightData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
+				//logger.debug(">> handleTightData");
+				
 				if (numColors == 0)
 					rowSize *= bytesPerPixel;
 				tightDataSize = rowSize * rfbReader.updateRectH;
@@ -139,7 +149,10 @@ package com.wizhelp.flashlight.codec
 						handleTightZlibLen,
 						handleTightZlibData);
 				}
-			});
+				
+				//logger.debug("<< handleTightData");
+			},
+			this);
 		
 		/* handle Tight data encoded with gradient filter
 		*  very slow but seems to be used only if Jpeg is disable
@@ -148,14 +161,162 @@ package com.wizhelp.flashlight.codec
 		private var handleTightGradientData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.timeStart('handleTightGradientData');
+				//logger.timeStart('handleTightGradientData');
 				
 				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
 				var pixelsBuffer:ByteArray = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
 				
 				stream.readBytes(rawDataBuffer,0,tightDataSize);
 				
-				rfbReader.readPixels(
+				var tmpRow:Array;
+				var prevRowR:ByteArray = new Array();
+				var prevRowG:ByteArray = new Array();
+				var prevRowB:ByteArray = new Array();
+				var thisRowR:Array = new Array();
+				var thisRowG:Array = new Array();
+				var thisRowB:Array = new Array();
+				var x:int=0;
+				var i:int, j:int;
+				var readPos:int = 0;
+				var writePos:int = 0;
+				var bytesPerPixel:int = rfbReader.bytesPerPixel;
+				var length:int = rfbReader.updateRectW*rfbReader.updateRectH;
+				var useDepth:Boolean = rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth;
+				
+				for (j=-1;j<rfbReader.updateRectW;j++) {
+					prevRowR[j] = 0;
+					prevRowG[j] = 0;
+					prevRowB[j] = 0;
+					thisRowR[j] = 0;
+					thisRowG[j] = 0;
+					thisRowB[j] = 0;
+				}
+				
+				for (j=0;j<length;j++) {
+					var color:uint=0;
+					var shift:int = 0;
+					
+					if (!useDepth) {
+						if (!rfbReader.bigEndian) {
+							for (i=0;i<bytesPerPixel;i++) {
+								color |= rawDataBuffer[readPos++] <<shift;
+								shift+=8;
+							}
+						} else {
+							for (i=0;i<bytesPerPixel;i++) {
+								color <<= 8;
+								color |= rawDataBuffer[readPos++];
+							}
+						}
+					} else {
+						if (!rfbReader.bigEndian) {
+							for (i=0;i<rfbReader.bytesPerPixelDepth;i++) {
+								color <<= 8;
+								color |= rawDataBuffer[readPos++];
+							}
+						} else {
+							for (i=0;i<rfbReader.bytesPerPixelDepth;i++) {
+								color |= rawDataBuffer[readPos++] <<shift;
+								shift+=8;
+							}
+						}
+					}
+		
+					thisRowR[x] = prevRowR[x] - prevRowR[x-1] + thisRowR[x-1];
+					thisRowG[x] = prevRowG[x] - prevRowG[x-1] + thisRowG[x-1];
+					thisRowB[x] = prevRowB[x] - prevRowB[x-1] + thisRowB[x-1];
+					
+					if (thisRowR[x] < 0) thisRowR[x] = 0;
+					if (thisRowG[x] < 0) thisRowG[x] = 0;
+					if (thisRowB[x] < 0) thisRowB[x] = 0;
+					
+					if (thisRowR[x] > rfbReader.redMask) thisRowR[x] = rfbReader.redMask;
+					if (thisRowG[x] > rfbReader.greenMask) thisRowG[x] = rfbReader.greenMask;
+					if (thisRowB[x] > rfbReader.blueMask) thisRowB[x] = rfbReader.blueMask;
+					
+					thisRowR[x] = ((thisRowR[x] + color) & rfbReader.redMask) ;
+					thisRowG[x] = ((thisRowG[x] + color) & rfbReader.greenMask) ;
+					thisRowB[x] = ((thisRowB[x] + color) & rfbReader.blueMask) ;
+						
+					pixelsBuffer[writePos++] = 0xFF;
+					pixelsBuffer[writePos++] = thisRowR[x] >> (16-rfbReader.redShift);
+					pixelsBuffer[writePos++] = thisRowG[x] >> (8 - rfbReader.greenShift);
+					pixelsBuffer[writePos++] = thisRowB[x] << rfbReader.blueShift;
+					
+					x++;
+					if (x == rfbReader.updateRectW) {
+						x = 0;
+						tmpRow = prevRowR;
+						prevRowR = thisRowR;
+						thisRowR = tmpRow;
+						
+						tmpRow = prevRowG;
+						prevRowG = thisRowG;
+						thisRowG = tmpRow;
+						
+						tmpRow = prevRowB;
+						prevRowB = thisRowB;
+						thisRowB = tmpRow;
+					}
+				}
+				
+				BufferPool.releaseDataBuffer(rawDataBuffer);
+				
+				vnc.handleUpdateImage(
+					rfbReader.updateRect,
+					pixelsBuffer);
+			
+				/*rfbReader.readPixels(
+					rawDataBuffer,
+					pixelsBuffer,
+					rfbReader.updateRectW*rfbReader.updateRectH,
+					rfbReader.bytesPerPixel != rfbReader.bytesPerPixelDepth);
+					
+				BufferPool.releaseDataBuffer(rawDataBuffer);
+					
+				var index:int = 0;
+				var x:int, y:int, c:int;
+				var rowOffset:int = rfbReader.updateRectW*4;*/
+				
+				/*index+=4;
+				for (x=1; x<rfbReader.updateRectW; x++) {
+					index++;
+					pixelsBuffer[index] += pixelsBuffer[index-4];
+					index++;
+					pixelsBuffer[index] += pixelsBuffer[index-4];
+					index++;
+					pixelsBuffer[index] += pixelsBuffer[index-4];
+					index++;
+				}*/
+				/*for (y=0; y<rfbReader.updateRectH; y++) {
+					index++;
+					pixelsBuffer[index] += index-rowOffset>0 ? pixelsBuffer[index-rowOffset] : 0;
+					index++;
+					pixelsBuffer[index] += index-rowOffset>0 ? pixelsBuffer[index-rowOffset] : 0;
+					index++;
+					pixelsBuffer[index] += index-rowOffset>0 ? pixelsBuffer[index-rowOffset] : 0;
+					index++;
+					for (x=1; x<rfbReader.updateRectW; x++) {
+						index++;
+						for (c=0; c<3; c++) {
+							var est:int = index-rowOffset>0 ? pixelsBuffer[index-rowOffset] - pixelsBuffer[index-rowOffset-4] + pixelsBuffer[index-4] : pixelsBuffer[index-4];*/
+								
+							/*if (est > 0xFF) {
+								est = 0xFF;
+							} else if (est < 0) {
+								est = 0;
+							}*/
+							//pixelsBuffer[index++] = (pixelsBuffer[index] + est) & 0xFF;
+							//pixelsBuffer[index++] = 0;
+						/*}
+					}
+				}
+				
+				vnc.handleUpdateImage(
+					rfbReader.updateRect,
+					pixelsBuffer);*/
+					
+				/*rfbReader.readPixels(
 					rawDataBuffer,
 					pixelsBuffer,
 					rfbReader.updateRectW*rfbReader.updateRectH,
@@ -202,26 +363,26 @@ package com.wizhelp.flashlight.codec
 				
 				vnc.handleUpdateImage(
 					rfbReader.updateRect,
-					pixelsBuffer);
+					pixelsBuffer);*/
 				
 				/*var dx:int, dy:int, c:int;
 				var prevRow:ByteArray = new ByteArray();
-				prevRow.length = rfb.updateRectW;
+				prevRow.length = rfbReader.updateRectW;
 				var thisRow:ByteArray = new ByteArray();
-				thisRow.length = rfb.updateRectW;
+				thisRow.length = rfbReader.updateRectW;
 				var pix:ByteArray = new ByteArray();
-				pix.length = rfb.bytesPerPixel;
-				var est:Array = new Array(rfb.bytesPerPixel);
+				pix.length = rfbReader.bytesPerPixel;
+				var est:Array = new Array(rfbReader.bytesPerPixel);
 				var tmp:ByteArray;
 				
-				for (c=0;c<rfb.updateRectW*rfb.bytesPerPixel;++c) {
+				for (c=0;c<rfbReader.updateRectW*rfbReader.bytesPerPixel;++c) {
 					prevRow[c] = 0;
 				}
 		
-				for (dy = 0; dy < rfb.updateRectH; dy++) {
+				for (dy = 0; dy < rfbReader.updateRectH; dy++) {
 		
 					// First pixel in a row 
-					for (c = 0; c < rfb.bytesPerPixel; c++) {
+					for (c = 0; c < rfbReader.bytesPerPixel; c++) {
 						pix[c] = prevRow[c] + rfb.rawDataBuffer[dy * rfb.updateRectW * rfb.bytesPerPixel + c];
 						thisRow[c] = pix[c];
 					}
@@ -297,15 +458,16 @@ package com.wizhelp.flashlight.codec
 					previousRow = tmp;
 				}*/
 					
-				logger.timeEnd('handleTightGradientData');
-			});
+				//logger.timeEnd('handleTightGradientData');
+			},
+			this);
 		
 		/* Handle tight data encoded in tight raw format
 		*/
 		private var handleTightRawData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.timeStart('handleTightRawData');
+				//logger.timeStart('handleTightRawData');
 				
 				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
 				var pixelsBuffer:ByteArray = BufferPool.getDataBuffer(4*rfbReader.updateRectW*rfbReader.updateRectH);
@@ -326,15 +488,16 @@ package com.wizhelp.flashlight.codec
 					rfbReader.updateRect,
 					pixelsBuffer);
 					
-				logger.timeEnd('handleTightRawData');
-			});
+				//logger.timeEnd('handleTightRawData');
+			},
+			this);
 		
 		/* Handle tight data encoded in tight raw format
 		*/
 		private var handleTightIndexedData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.timeStart('handleTightIndexedData2');
+				//logger.timeStart('handleTightIndexedData2');
 				
 				var x:int;
 				var y:int;
@@ -385,12 +548,12 @@ package com.wizhelp.flashlight.codec
 						rfbReader.updateRect,
 						pixelsBuffer);
 					
-					logger.timeEnd('handleTightIndexedData2');
+					//logger.timeEnd('handleTightIndexedData2');
 				} else {
 					// Optimized decompression of a block of indexed pixels
 					// TODO create a generic method to do this on RFB.as and use it
 				
-					logger.timeStart('handleTightIndexedDataP1');
+					//logger.timeStart('handleTightIndexedDataP1');
 					
 					var i:int = 0;
 					var nullPalette:Array = new Array(256);
@@ -523,7 +686,7 @@ package com.wizhelp.flashlight.codec
 							rfb.pixelsBuffer[pixelPos++]=6;
 						}
 					}*/
-					logger.timeEnd('handleTightIndexedDataP1');
+					//logger.timeEnd('handleTightIndexedDataP1');
 					
 					/*logger.timeStart('handleTightIndexedDataP2');
 					
@@ -538,7 +701,8 @@ package com.wizhelp.flashlight.codec
 					logger.timeEnd('handleTightIndexedDataP2');*/
 
 				}
-			});	
+			},
+			this);	
 		
 		private var handleTightFilter:DataHandler = new DataHandler(
 			1,
@@ -559,7 +723,8 @@ package com.wizhelp.flashlight.codec
 					default :
 						throw new Error("Incorrect Tight filter id : "+ filterId);
 				}
-			});
+			},
+			this);
 		
 		private var handleTightPaletteHeader:DataHandler = new DataHandler(
 			1,
@@ -568,7 +733,8 @@ package com.wizhelp.flashlight.codec
 				//output.text+="TightFilterPalette : "+numColors+"\n";
 				handleTightPaletteColors.bytesNeeded = numColors*bytesPerPixel;
 				rfbReader.rfbStack.unshift(handleTightPaletteColors);
-			});
+			},
+			this);
 		
 		private var handleTightPaletteColors:DataHandler = new DataHandler(
 			0,
@@ -579,14 +745,16 @@ package com.wizhelp.flashlight.codec
 				
 				if (numColors == 2)
 					rowSize = (rfbReader.updateRectW + 7) / 8;
-			});
+			},
+			this);
 		
 		private var handleTightZlibLen:DataHandler = new DataHandler(
 			3,
 			function(stream:IDataInput):void {
 				tightZlibDataSize = readCompactLen(stream);
 				handleTightZlibData.bytesNeeded = tightZlibDataSize;
-			});
+			},
+			this);
 		
 		
 		/* Handle tight data compressed in a Zlib stream
@@ -597,7 +765,8 @@ package com.wizhelp.flashlight.codec
 		private var handleTightZlibData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.timeStart('handleTightZlibData');
+				//logger.timeStart('handleTightZlibData');
+				//logger.debug('>> handleTightZlibData');
 				
 				var compressedBuffer:ByteArray = BufferPool.getDataBuffer(tightZlibDataSize);
 				stream.readBytes(compressedBuffer,0,tightZlibDataSize);
@@ -611,9 +780,8 @@ package com.wizhelp.flashlight.codec
 						tightInflaters[streamId] = inflater;
 					}
 					
-					logger.timeStart('inflater');
 					inflater.inflate(compressedBuffer,tightZlibDataSize, tightDataSize);
-					logger.timeEnd('inflater');
+					//logger.timeEnd('inflater');
 				} else {
 					if (inflater == null) {
 						inflater = new InflaterFZlib();
@@ -623,25 +791,35 @@ package com.wizhelp.flashlight.codec
 					inflater.inflateThreaded(compressedBuffer,tightZlibDataSize, tightDataSize);
 				}
 				
-				Thread.currentThread.stack.push(processUncompressedData);
-			});
-			
-		private function processUncompressedData():void {
-			logger.timeEnd('handleTightZlibData');
+				rfbReader.rfbStack.unshift(processUncompressedData);
 				
-			logger.timeStart('handlingTightZlibData');
-			if (numColors!=0) {
-				handleTightIndexedData.bytesNeeded = tightDataSize;
-				handleTightIndexedData.call(inflater.uncompressedData);
-			} else if (useGradient) {
-				handleTightGradientData.bytesNeeded = tightDataSize;
-				handleTightGradientData.call(inflater.uncompressedData);
-			} else {
-				handleTightRawData.bytesNeeded = rfbReader.updateRectH*rfbReader.updateRectW*rfbReader.bytesPerPixel;
-				handleTightRawData.call(inflater.uncompressedData);
-			}
-			logger.timeEnd('handlingTightZlibData');
-		}
+				//logger.debug('<< handleTightZlibData');
+			},
+			this);
+			
+		private var processUncompressedData:DataHandler = new DataHandler(
+			0,
+			function(stream:IDataInput):void {
+				//logger.debug('>> processUncompressedData');
+				
+				//logger.timeEnd('handleTightZlibData');
+					
+				//logger.timeStart('handlingTightZlibData');
+				if (numColors!=0) {
+					handleTightIndexedData.bytesNeeded = tightDataSize;
+					handleTightIndexedData.call.apply(handleTightIndexedData.object, [inflater.uncompressedData]);
+				} else if (useGradient) {
+					handleTightGradientData.bytesNeeded = tightDataSize;
+					handleTightGradientData.call.apply(handleTightGradientData.object, [inflater.uncompressedData]);
+				} else {
+					handleTightRawData.bytesNeeded = rfbReader.updateRectH*rfbReader.updateRectW*rfbReader.bytesPerPixel;
+					handleTightRawData.call.apply(handleTightRawData.object, [inflater.uncompressedData]);
+				}
+				//logger.timeEnd('handlingTightZlibData');
+			
+				//logger.debug('<< processUncompressedData');
+			},
+			this);
 			
 		private var handleTightFill:DataHandler = new DataHandler(
 			0,
@@ -655,30 +833,43 @@ package com.wizhelp.flashlight.codec
 				vnc.handleUpdateImageFillRect(
 					rfbReader.updateRect,
 					color);
-			});
+			},
+			this);
 			
 		private var handleTightJpegLen:DataHandler = new DataHandler(
 			3,
 			function(stream:IDataInput):void {
 				handleTightJpegData.bytesNeeded = readCompactLen(stream);
-			});
+			},
+			this);
 			
 		private var handleTightJpegData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.timeStart('handleTightJpegData');
+				//logger.timeStart('handleTightJpegData');
 				
 				var rawDataBuffer:ByteArray = BufferPool.getDataBuffer(tightDataSize);
 				
 				stream.readBytes(rawDataBuffer,0,handleTightJpegData.bytesNeeded);
 				
-				jpgLoader.loadBytes(rawDataBuffer);
-				
-				BufferPool.releaseDataBuffer(rawDataBuffer);
-				
-				Thread.currentThread.stack.unshift(handleTightJpegComplete);
-				Thread.currentThread.wait(jpgLoader.contentLoaderInfo, Event.COMPLETE);
-			});		
+				if (!async) {
+					jpgLoader.loadBytes(rawDataBuffer);
+					
+					BufferPool.releaseDataBuffer(rawDataBuffer);
+					
+					Thread.currentThread.stack.unshift(new ThreadFunction(this,handleTightJpegComplete));
+					Thread.currentThread.wait(jpgLoader.contentLoaderInfo, Event.COMPLETE);
+				} else {
+					var loader:Loader = new Loader();
+					
+					loader.loadBytes(rawDataBuffer);
+					
+					vnc.handleUpdateImageAsyncJpeg(
+						rfbReader.updateRect,
+						loader);
+				}
+			},
+			this);		
 		
 		private function handleTightJpegComplete():void {
 			var jpegImage:BitmapData = Bitmap(jpgLoader.content).bitmapData;
@@ -690,7 +881,7 @@ package com.wizhelp.flashlight.codec
 			
 			jpgLoader.unload();
 			
-			logger.timeEnd('handleTightJpegData');
+			//logger.timeEnd('handleTightJpegData');
 		}
 			
 		private function readCompactLen(stream:IDataInput):int {

@@ -26,60 +26,51 @@
 
 package com.wizhelp.flashlight.player
 {
+	import com.wizhelp.flashlight.fbs.FBSListener;
 	import com.wizhelp.flashlight.fbs.FBSReader;
 	import com.wizhelp.flashlight.rfb.RFBReader;
-	import com.wizhelp.utils.Logger;
 	import com.wizhelp.utils.Thread;
 	
 	import flash.events.Event;
 	import flash.events.ProgressEvent;
+	import flash.geom.Rectangle;
 	import flash.net.URLStream;
 	import flash.utils.ByteArray;
-	import flash.utils.getTimer;
+	import flash.utils.getQualifiedClassName;
 	
-	public class PlayerThread extends Thread {
-		private static var logger:Logger = new Logger(PlayerThread);
+	import mx.logging.ILogger;
+	import mx.logging.Log;
+	
+	public class PlayerBufferedThread extends Thread implements FBSListener {
+		
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.player.PlayerEmbedThread');
 		
 		private var rfbReader:RFBReader;
 		private var fbsReader:FBSReader;
-		private var urlStream:URLStream;
 		private var player:Player;
 		private var totalLength:int = -1;
 		
 		public var pre_processing_time:int = 3000;
 		
-		public function PlayerThread(player:Player, rfbReader:RFBReader, urlStream:URLStream) {
+		public function PlayerBufferedThread(player:Player, rfbReader:RFBReader, videoBytes:ByteArray) {
 			this.rfbReader = rfbReader;
-			this.urlStream = urlStream;
 			this.player = player;
-			this.fbsReader = new FBSReader();
+			this.fbsReader = new FBSReader(this);
 			
 			var rfbData:ByteArray = new ByteArray();
+			totalLength = videoBytes.length;
 			
-			fbsReader.input = urlStream;
+			fbsReader.input = videoBytes;
 			fbsReader.output = rfbData;
 			rfbReader.input = rfbData;
-			
-			urlStream.addEventListener(Event.COMPLETE, handleStreamCompleted);
-			urlStream.addEventListener(ProgressEvent.PROGRESS, handleProgress);
 		}
 		
 		override public function run():void {
-			logger.log(">> run()");
+			logger.debug(">> run()");
 			
-			if (urlStream.connected) {
-				runFBS();
-			} else {
-				stack.push(runFBS);
-				wait(urlStream, ProgressEvent.PROGRESS);
-			}
+			runFBS();
 			
-			logger.log("<< run()");
-		}
-		
-		private function handleProgress(event:ProgressEvent):void {
-			totalLength = event.bytesTotal;
-			urlStream.removeEventListener(ProgressEvent.PROGRESS, handleProgress);
+			logger.debug("<< run()");
 		}
 		
 		private function runRFB():void {
@@ -97,7 +88,11 @@ package com.wizhelp.flashlight.player
 			//logger.log(">> runFBS()");
 			if (fbsReader.filePosition == totalLength) {
 				player.handlePreBufferingCompleted();
-				player.videoDuration = player.preBufferingPosition;
+				if (player.videoDuration == -1) {
+					player.videoDuration = player.preBufferingPosition;
+				} else {
+					player.preBufferingPosition = player.videoDuration;
+				}
 			} else {
 				if (fbsReader.hasEnoughData()) {
 					if (player.preBufferingPosition - player.currentPosition > pre_processing_time) {
@@ -114,18 +109,34 @@ package com.wizhelp.flashlight.player
 						}
 					}
 				} else {
-					stack.push(runFBS);
-					logger.log('wait data');
-					wait(urlStream, ProgressEvent.PROGRESS);
+					// Force end of buffering
+					logger.warn('Incorrect video file size, force end');
+					player.handlePreBufferingCompleted();
+					if (player.videoDuration == -1) {
+						player.videoDuration = player.preBufferingPosition;
+					} else {
+						player.preBufferingPosition = player.videoDuration;
+					}
 				}
 			}
 			//sleep(20);
 			//logger.log("<< runFBS()");
 		}
 		
-		private function handleStreamCompleted(event:Event):void {
-			logger.log(">> handleStreamCompleted()");
-			logger.log("<< handleStreamCompleted()");
+		public function onVideoDuration(duration:int):void {
+			logger.debug(">> onVideoDuration()");
+			
+			player.videoDuration = duration;
+			
+			logger.debug("<< onVideoDuration()");
+		}
+		
+		public function onClipRectangle(clipRectangle:Rectangle):void {
+			logger.debug(">> onClipRectangle()");
+			
+			player.setClipRectangle(clipRectangle);
+			
+			logger.debug("<< onClipRectangle()");
 		}
 	}
 }

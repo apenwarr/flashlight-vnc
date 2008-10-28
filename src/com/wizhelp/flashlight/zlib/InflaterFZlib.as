@@ -30,6 +30,7 @@ package com.wizhelp.flashlight.zlib
 	import com.wizhelp.fzlib.FZlib;
 	import com.wizhelp.fzlib.ZStream;
 	import com.wizhelp.utils.Thread;
+	import com.wizhelp.utils.ThreadFunction;
 	
 	import flash.utils.ByteArray;
 	
@@ -77,7 +78,7 @@ package com.wizhelp.flashlight.zlib
 		    
 		    remainingData = compressedDataSize;
 		    
-		    Thread.currentThread.stack.unshift(inflatePart);
+		    Thread.currentThread.stack.unshift(new ThreadFunction(this,inflatePart));
 		}
 		
 		public function inflatePart():void {
@@ -91,7 +92,7 @@ package com.wizhelp.flashlight.zlib
 		    }
 		    
 		    if (remainingData != 0) {
-		    	Thread.currentThread.stack.unshift(inflatePart);
+		    	Thread.currentThread.stack.unshift(new ThreadFunction(this,inflatePart));
 		    }
 		}
 	}

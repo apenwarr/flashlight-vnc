@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical"
+	xmlns:comp="com.screentoaster.components.*"
+	xmlns:flashlight="com.wizhelp.flashlight.player.*"
+	backgroundColor="#FFFFFF"
+	paddingTop="0" paddingBottom="0" paddingRight="0" paddingLeft="0"
+	verticalGap="0"
+	creationComplete="init()">
+	
+	<mx:Script>
+		<![CDATA[
+			import com.screentoaster.utils.logger.JSTarget;
+			import com.screentoaster.utils.logger.ConsoleTarget;
+			import mx.logging.LogEventLevel;
+			import mx.logging.ILogger;
+			import flash.utils.getQualifiedClassName;
+			import mx.logging.Log;
+			
+			private var logger:ILogger = Log.getLogger(getQualifiedClassName(this));
+			
+			[Bindable] private var videoUrl:String =  'vncRecord.fbs';
+			[Bindable] private var audioUrl:String = null;
+			[Bindable] private var subtitlesUrl:String = null;
+			[Bindable] private var previewUrl:String =  null;
+			
+			[Bindable] private var debug:Boolean = false;
+			[Bindable] private var logFunction:String = null;
+			[Bindable] private var videoDuration:int =  -1;
+
+			private function init():void {
+				videoUrl = parameters.video ? parameters.video : 'vncRecord.fbs';
+				audioUrl = parameters.audio ? parameters.audio : null;
+				subtitlesUrl = parameters.subtitles ? parameters.subtitles : null;
+				previewUrl = parameters.preview ? parameters.preview : null;
+			
+				debug = parameters.debug ? parameters.debug : false;
+				logFunction = parameters.logFunction ? parameters.logFunction : null;
+				videoDuration = parameters.videoDuration ? parameters.videoDuration : -1;
+				var autoPlay:Boolean  = parameters.autoPlay ? parameters.autoPlay : false;
+				
+				if (debug) {
+					var debugBox:Box = new Box();
+					debugBox.percentWidth=100;
+					debugBox.height=200;
+					var debugConsole:Text = new Text();
+					debugBox.addChild(debugConsole);
+					addChild(debugBox);
+					
+			        ConsoleTarget.console = debugConsole;
+					var consoleTarget:ConsoleTarget = new ConsoleTarget();
+					
+			        // Log all log levels.
+			        consoleTarget.level = LogEventLevel.ALL;
+			
+			        // Add date, time, category, and log level to the output.
+			        consoleTarget.includeDate = true;
+			        consoleTarget.includeTime = true;
+			        consoleTarget.includeCategory = true;
+			        consoleTarget.includeLevel = true;
+			
+			        // Begin logging.
+			        Log.addTarget(consoleTarget);
+			        
+					logger.warn('Debug mode');
+				}
+			
+				if (logFunction)  {
+					JSTarget.jsLoggerFunction = logFunction;
+					var jsTarget:JSTarget = new JSTarget();
+					
+			        // Log all log levels.
+			        if (debug) {
+			        	jsTarget.level = LogEventLevel.ALL;
+			        } else {
+			        	jsTarget.level = LogEventLevel.INFO;
+			        }
+			
+			        // Begin logging.
+			        Log.addTarget(jsTarget);
+				}
+				
+				if (autoPlay) {
+					viewer.play();
+				}
+			}
+
+		]]>
+	</mx:Script>
+	
+	<mx:Fade id="fadeOut" duration="300" alphaFrom="1.0" alphaTo="0.0"/>
+    <mx:Fade id="fadeIn" duration="300" alphaFrom="0.0" alphaTo="1.0"/>
+	
+	<mx:Canvas width="100%" height="100%" backgroundColor="#000000">
+		<comp:SmoothImage width="100%" height="100%"
+			horizontalAlign="center" verticalAlign="middle" source="{previewUrl}"
+			ioError="logger.error('Cannot load preview ('+previewUrl+') : '+event.type+' '+event.text);"
+			securityError="logger.error('Cannot load preview ('+previewUrl+') : '+event.type+' '+event.text);"/>
+			
+		<flashlight:Player id="viewer"  width="100%" height="100%"
+			horizontalAlign="center" verticalAlign="middle"
+			videoUrl="{videoUrl}"
+			audioUrl="{audioUrl}"
+			videoDurationDefault="{videoDuration}" />
+			
+		<comp:SubtitleBox bottom="32" left="20" right="20"
+			subtitlesUrl="{subtitlesUrl}" player="{viewer}"/>
+		
+		<mx:Box width="100%" height="100%" verticalAlign="middle" horizontalAlign="center" 
+				backgroundColor="#000000" visible="{viewer.buffering}" backgroundAlpha="0.3"
+				showEffect="{fadeIn}" hideEffect="{fadeOut}">
+				<mx:VBox width="100" horizontalAlign="center">
+					<mx:Text width="100%" textAlign="center" text="Buffering" fontWeight="bold" fontSize="11" color="#FFFFFF"/>
+					<comp:LoadingSprite visible="{viewer.buffering}"/>
+					<mx:Text width="100%" textAlign="center" text="Please wait ..." fontWeight="bold" fontSize="11" color="#FFFFFF"/>
+				</mx:VBox>
+		</mx:Box>
+		
+		<mx:Box width="100%" height="100%" verticalAlign="middle" horizontalAlign="center"
+			click="viewer.playing ? viewer.pause() : viewer.play()">
+			<comp:SmoothImage source="@Embed('/assets/playLayer.png')"
+				width="30%" height="30%" alpha="0.6"
+				horizontalAlign="center" verticalAlign="middle"
+				visible="{!viewer.playing}"/>
+		</mx:Box>
+			
+		<mx:Canvas bottom="0" left="0" height="30" width="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<comp:SlideBox id="controls" width="100%" direction="horizontal" y="0"
+				backgroundColor="#CCCCCC" alpha="0.8"
+				paddingTop="3" paddingBottom="3" paddingRight="3" paddingLeft="3"
+				horizontalGap="4"
+				borderStyle="solid">
+				<comp:PlayButton player="{viewer}" />
+				<comp:RewindButton player="{viewer}" />
+				<comp:PlayerBar player="{viewer}" width="100%"/>
+				<comp:DurationDisplay player="{viewer}" />
+				<comp:FullScreenButton />
+			</comp:SlideBox>
+		</mx:Canvas>
+	</mx:Canvas>
+</mx:Application>

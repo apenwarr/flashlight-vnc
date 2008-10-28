@@ -26,15 +26,17 @@
 
 package com.wizhelp.flashlight.rfb
 {
-	import com.wizhelp.utils.Logger;
-	
 	import flash.events.KeyboardEvent;
 	import flash.events.MouseEvent;
 	import flash.net.Socket;
 	import flash.ui.Keyboard;
+	import flash.utils.getQualifiedClassName;
+	
+	import mx.logging.ILogger;
+	import mx.logging.Log;
 	
 	public class RFBWriter {
-		private static var logger:Logger = new Logger(RFBWriter);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.rfb.RFBWriter');
 			
 		public static function writeEncodings(socket:Socket, encodings:Array):void {
 			socket.writeByte(RFBConst.SetEncodings);
@@ -159,10 +161,6 @@ package com.wizhelp.flashlight.rfb
 			}*/
 			
 			var keysym:uint;
-			
-			logger.log(event.charCode);
-			logger.log(event.keyCode);
-			logger.log(event.keyLocation);
 			
 			switch ( event.keyCode ) {
 				case Keyboard.BACKSPACE : keysym = 0xFF08; break;

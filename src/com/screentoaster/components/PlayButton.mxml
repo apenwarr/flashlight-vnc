@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml"
+	icon="{player.playing ? pauseIcon : playIcon}" textAlign="center"
+	width="24"
+	click="handlePlay()">
+	
+	<mx:Script>
+		<![CDATA[
+			import flash.utils.getQualifiedClassName;
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			import com.wizhelp.flashlight.player.Player;
+			
+			[Embed(source="/assets/play.png")] [Bindable] private var playIcon:Class;
+			[Embed(source="/assets/pause.png")] [Bindable] private var pauseIcon:Class;
+			
+			private var logger:ILogger = Log.getLogger('com.screentoaster.components.PlayButton');
+			[Bindable] public  var player:Player;
+			
+			private function handlePlay():void {
+			 	logger.debug(">> handlePlay()");
+			 	
+			 	try {
+					if (player.playing) {
+						player.pause();
+					} else {
+						player.play();
+					}
+				} catch (e:Error) {
+					logger.error("An unexpected error occured during handlePlay : "+e.errorID+" "+e.name+" "+e.message+" "+e.getStackTrace());
+				}
+				
+			 	logger.debug("<< handlePlay()");
+			}
+		]]>
+	</mx:Script>
+</mx:Button>

@@ -20,21 +20,14 @@
 	
 */
 
-/*
-	This class provide a way to stop execution until enough data has been received.
-	(pseudo-multithreading)
-*/
-
-package com.wizhelp.flashlight.thread
+package com.wizhelp.utils
 {
-	public class DataHandler
+	public class ThreadFunction
 	{
-		public var bytesNeeded:uint;
 		public var call:Function;
 		public var object:Object;
-		public function DataHandler(bytesNeeded:uint, call:Function, object:Object)
+		public function ThreadFunction(object:Object, call:Function)
 		{
-			this.bytesNeeded = bytesNeeded;
 			this.call = call;
 			this.object = object;
 		}

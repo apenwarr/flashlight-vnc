@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml"
+	icon="{isFullScreen ? fitToWindowIcon : fitToScreenIcon}" 
+	toolTip="{isFullScreen ? 'Browser view' : 'Fullscreen view'}"
+	paddingLeft="4" paddingRight="4" textAlign="center"
+	width="24"
+	click="handleSwitchFullScreen()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.core.Application;
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			
+			[Embed(source="/assets/fitToScreen.png")] [Bindable] private var fitToScreenIcon:Class;
+			[Embed(source="/assets/fitToWindow.png")] [Bindable] private var fitToWindowIcon:Class;
+			
+			private static var logger:ILogger = Log.getLogger('com.screentoaster.components.FullScreenButton');
+			[Bindable] public  var isFullScreen:Boolean = false;
+		    	
+			private function handleSwitchFullScreen(event:FullScreenEvent=null):void {
+			 	logger.debug("<< handleSwitchFullScreen()");
+			 	
+				try {
+					if (isFullScreen) {
+						isFullScreen = false;
+						Application.application.stage.removeEventListener(FullScreenEvent.FULL_SCREEN,handleSwitchFullScreen);
+						Application.application.stage.displayState = StageDisplayState.NORMAL;
+					} else {
+						isFullScreen = true;
+						Application.application.stage.displayState = StageDisplayState.FULL_SCREEN;
+						Application.application.stage.addEventListener(FullScreenEvent.FULL_SCREEN,handleSwitchFullScreen);
+					}
+				} catch (e:Error) {
+					logger.error("An unexpected error occured during handleSwitchFullScreen : "+e.errorID+" "+e.name+" "+e.message+" "+e.getStackTrace());
+				}
+				
+			 	logger.debug(">> handleSwitchFullScreen()");
+			}
+		]]>
+	</mx:Script>
+</mx:Button>

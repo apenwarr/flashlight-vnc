@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Text xmlns:mx="http://www.adobe.com/2006/mxml"
+	height="100%"
+	letterSpacing="-1.2" fontSize="10" fontWeight="bold"
+	text="{formatTime(player.currentPosition)+' / '+formatTime(player.videoDuration)}">
+	
+	<mx:Script>
+		<![CDATA[
+			import com.wizhelp.flashlight.player.Player;
+			
+			[Bindable] public var player:Player;
+			
+	        private function formatTime(time:int):String {
+	        	if (time == -1) {
+	        		return '??:??';
+	        	} else {
+		        	var minutes:int = time / 60000;
+		        	var seconds:int = (time - minutes * 60000) / 1000;
+		        	
+		        	return (minutes+':'+(seconds < 10 ? '0' + seconds : seconds));
+		        }
+	        }
+		]]>
+	</mx:Script>
+</mx:Text>

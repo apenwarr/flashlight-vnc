@@ -1,0 +1,5 @@
+BUGS :
+v1.1.0 : CRT+C doesn't work.
+
+FEATURES :
+v1.1.0 : add more dialog on errors

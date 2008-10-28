@@ -28,9 +28,9 @@
 -->
 
 <mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
-	xmlns:wiz="com.wizhelp.flashlight.player.*">
+	xmlns:wiz="com.wizhelp.flashlight.player.*" height="22">
 	<wiz:Player id="player" />
 	
-	<mx:ProgressBar id="progress" width="100%" source="{player.videoLoader}" label="" y="8"/>
+	<mx:ProgressBar id="progress" width="100%" height="8" source="{player.videoLoader}" label="" y="8"/>
 	<mx:Image id="index" source="@Embed('/assets/slide.png')" x="{player.currentPosition*(progress.width-index.width)/player.videoDuration}" y="3"/>
 </mx:Canvas>

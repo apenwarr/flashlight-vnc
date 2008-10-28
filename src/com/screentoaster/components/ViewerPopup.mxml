@@ -26,42 +26,53 @@
 		<![CDATA[
 			import mx.events.CloseEvent;
 			import mx.managers.PopUpManager;
+			
+			[Bindable] public var viewer:FLViewer;
+			public var canceled:Boolean = false;
+			
+			private function commitChanges():void {
+				viewer.port = int(portField.text);
+				viewer.host = hostField.text;
+				viewer.securityPort = int(securityPortField.text);
+				viewer.password = passwordField.text;
+				viewer.viewOnly = viewOnlyCheckBox.selected;
+				viewer.shared = sharedCheckBox.selected;
+			}
 		]]>
 	</mx:Script>
-
-	<mx:String id="host" />
-	<mx:String id="port" />
-	<mx:String id="password" />
-	<mx:String id="securityPort" />
-	<mx:Boolean id="canceled" />
-	
-	<mx:Binding source="hostField.text" destination="host" />
-	<mx:Binding source="portField.text" destination="port" />
-	<mx:Binding source="passwordField.text" destination="password" />
-	<mx:Binding source="securityPortField.text" destination="securityPort" />
 	
     <mx:HBox width="100%">
         <mx:Label text="Host: "/>
-        <mx:TextInput id="hostField" width="100%" text="{host}"/>
+        <mx:TextInput id="hostField" width="100%" text="{viewer.host}"/>
     </mx:HBox>
 
     <mx:HBox width="100%">
         <mx:Label text="Port: "/>
-        <mx:TextInput id="portField" width="100%" text="{port}"/>
+        <mx:TextInput id="portField" width="100%" text="{viewer.port}"/>
     </mx:HBox>
     
      <mx:HBox width="100%">
         <mx:Label text="Password (if any): "/>
-        <mx:TextInput id="passwordField" width="100%" text="{password}" displayAsPassword="true" />
+        <mx:TextInput id="passwordField" width="100%" text="{viewer.password}" displayAsPassword="true" />
     </mx:HBox>
     
      <mx:HBox width="100%">
         <mx:Label text="Security policy port: "/>
-        <mx:TextInput id="securityPortField" width="100%" text="{securityPort}" />
+        <mx:TextInput id="securityPortField" width="100%" text="{viewer.securityPort}" />
+    </mx:HBox>
+     
+     <mx:HBox width="100%">
+        <mx:Label text="Shared session: "/>
+        <mx:CheckBox id="sharedCheckBox" selected="{viewer.shared}" />
+    </mx:HBox>
+    
+     <mx:HBox width="100%">
+        <mx:Label text="View only: "/>
+        <mx:CheckBox id="viewOnlyCheckBox" selected="{viewer.viewOnly}" />
     </mx:HBox>
     
     <mx:HBox horizontalAlign="right" width="100%">
-        <mx:Button label="OK" click="canceled=false; PopUpManager.removePopUp(this); this.dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
-        <mx:Button label="Cancel" click="canceled=true; PopUpManager.removePopUp(this); this.dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
+        <mx:Button label="OK" click="commitChanges(); PopUpManager.removePopUp(this);dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
+        <mx:Button label="Cancel" click="canceled=true;PopUpManager.removePopUp(this);dispatchEvent(new CloseEvent(CloseEvent.CLOSE));"/>
     </mx:HBox>
 </mx:TitleWindow>  

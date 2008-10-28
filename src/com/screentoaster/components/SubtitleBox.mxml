@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Box xmlns:mx="http://www.adobe.com/2006/mxml"
+		backgroundAlpha="0.7"
+		backgroundColor="#ccdcec"
+		borderColor="#555555"
+		borderThickness="1"
+		borderStyle="outset"
+		paddingBottom="5"
+		paddingLeft="5"
+		paddingRight="5"
+		paddingTop="5"
+		visible="{subtitle!=null}"
+		width="100%">
+	
+	<mx:Script>
+		<![CDATA[
+			import com.screentoaster.utils.srt.SRTReader;
+			import com.screentoaster.utils.srt.Subtitle;
+			import com.wizhelp.flashlight.player.Player;
+		
+		
+		//visible="{subtitle.length>0}"
+		
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			
+			private var logger:ILogger = Log.getLogger('com.screentoaster.components.SubtitleBox');
+			
+			[Bindable] public var player:Player;
+			private var _subtitle:Subtitle = null;
+			
+			public function set subtitle(value:Subtitle):void {
+				if (_subtitle!=value) {
+					if (value && value.waitTime!=-1) {
+						player.hangPlay(value.waitTime);
+					}
+					_subtitle = value;
+					dispatchEvent(new Event("subtitleChanged"));
+				}
+			}
+			
+			[Bindable("subtitleChanged")]
+			public function get subtitle():Subtitle {
+				return _subtitle;
+			}
+		
+			public function set subtitlesUrl(value:String):void {
+				logger.debug(">> set subtitles()");
+				if (value) {
+					var subtitlesLoader:URLLoader = new URLLoader();
+					
+					subtitlesLoader.addEventListener(IOErrorEvent.IO_ERROR, handleIOError);
+					subtitlesLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, handleSecurityError);
+					subtitlesLoader.addEventListener(Event.COMPLETE, handleDownloadCompleted);
+					
+					subtitlesLoader.load(new URLRequest(value));
+				}
+				logger.debug("<< set subtitles()");
+			}
+			
+			private function handleIOError(event:IOErrorEvent):void {
+				logger.error("An error occured when downloading subtitles : "+event.type+" "+event.text);
+			}
+			
+			private function handleSecurityError(event:SecurityErrorEvent):void {
+				logger.error("An error occured when downloading subtitles : "+event.type+" "+event.text);
+			}
+			
+			private function handleDownloadCompleted(event:Event):void {
+				logger.debug(">> handleDownloadCompleted()");
+				
+				try {
+					var loader:URLLoader = event.target as URLLoader;
+					var subtitlesData:String = loader.data as String;
+					
+					subtitles.source = SRTReader.read(subtitlesData);
+					subtitle = getSubtitle(subtitles, player.currentPosition);
+				} catch (e:Error) {
+					logger.error("An unexpected error occured when processing subtitles :  "+e.name+" "+e.message);
+				}
+				
+				logger.debug("<< handleDownloadCompleted()");
+			}
+			
+			private function getSubtitle(subtitlesA:ArrayCollection, timestamp:int):Subtitle {
+				return getSubtitleRec(subtitlesA,timestamp,-1,subtitlesA.length+1);
+			}
+			
+			private function getSubtitleRec(subtitlesA:ArrayCollection, timestamp:int, index:int, size:int):Subtitle {
+				if (size<=1) {
+					if (index == -1) {
+						return null;
+					} else {
+						var subtitle:Subtitle = Subtitle(subtitlesA.getItemAt(index));
+						if (timestamp >= subtitle.hideTime) {
+							return null;
+						} else {
+							return subtitle;
+						}
+					}					
+				} else {
+					var newIndex:int = int(index+size/2);
+					if (subtitlesA.getItemAt(newIndex).showTime > timestamp) {
+						return getSubtitleRec(subtitlesA,timestamp,index,int(size/2));
+					} else {
+						return getSubtitleRec(subtitlesA,timestamp,newIndex,int((size+1)/2));
+					}
+				}
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Binding destination="subtitle" source="getSubtitle(subtitles,player.currentPosition)" />
+	<mx:ArrayCollection id="subtitles" />
+	<mx:Text textAlign="center" text="{subtitle.text}" width="100%" fontSize="14" fontWeight="bold" />
+</mx:Box>

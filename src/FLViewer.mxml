@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical"
+	xmlns:comp="com.screentoaster.components.*"
+	xmlns:flashlight="com.wizhelp.flashlight.viewer.*"
+	backgroundColor="#FFFFFF"
+	paddingTop="0" paddingBottom="0" paddingRight="0" paddingLeft="0"
+	verticalGap="0"
+	creationComplete="init()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Text;
+			import mx.containers.Box;
+			import com.screentoaster.utils.logger.JSTarget;
+			import com.screentoaster.utils.logger.ConsoleTarget;
+			import mx.logging.LogEventLevel;
+			import mx.logging.ILogger;
+			import flash.utils.getQualifiedClassName;
+			import mx.logging.Log;
+			
+			private var logger:ILogger = Log.getLogger(getQualifiedClassName(this));
+		
+			[Bindable] public var host:String =  'localhost';
+			[Bindable] public var port:int = 5900;
+			[Bindable] public var password:String = null;
+			[Bindable] public var securityPort:int =  -1;
+			[Bindable] public var shared:Boolean =  false;
+			[Bindable] public var viewOnly:Boolean =  false;
+			
+			[Bindable] private var debug:Boolean = false;
+			[Bindable] private var logFunction:String = null;
+			[Bindable] private var autoConnect:Boolean =  false;
+
+			private function init():void {
+				host = parameters.host ? parameters.host : 'localhost';
+				port = parameters.port ? parameters.port : 5900;
+				password = parameters.password ? parameters.password : null;
+				securityPort = parameters.securityPort ? parameters.securityPort : -1;
+				shared = parameters.shared ? parameters.shared : false;
+				viewOnly = parameters.viewOnly ? parameters.viewOnly : false;
+			
+				debug = parameters.debug ? parameters.debug : false;
+				logFunction = parameters.logFunction ? parameters.logFunction : null;
+				autoConnect = parameters.autoConnect ? parameters.autoConnect : false;
+				
+				if (debug) {
+					var debugBox:Box = new Box();
+					debugBox.percentWidth=100;
+					debugBox.height=200;
+					var debugConsole:Text = new Text();
+					debugBox.addChild(debugConsole);
+					addChild(debugBox);
+					
+			        ConsoleTarget.console = debugConsole;
+					var consoleTarget:ConsoleTarget = new ConsoleTarget();
+					
+			        // Log all log levels.
+			        consoleTarget.level = LogEventLevel.ALL;
+			
+			        // Add date, time, category, and log level to the output.
+			        consoleTarget.includeDate = true;
+			        consoleTarget.includeTime = true;
+			        consoleTarget.includeCategory = true;
+			        consoleTarget.includeLevel = true;
+			
+			        // Begin logging.
+			        Log.addTarget(consoleTarget);
+			        
+					logger.warn('Debug mode');
+				}
+			
+				if (logFunction)  {
+					JSTarget.jsLoggerFunction = logFunction;
+					var jsTarget:JSTarget = new JSTarget();
+					
+			        // Log all log levels.
+			        if (debug) {
+			        	jsTarget.level = LogEventLevel.ALL;
+			        } else {
+			        	jsTarget.level = LogEventLevel.INFO;
+			        }
+			
+			        // Begin logging.
+			        Log.addTarget(jsTarget);
+				}
+				
+				if (autoConnect) {
+					viewer.connect();
+				}
+			}
+
+		]]>
+	</mx:Script>
+	
+	<mx:Canvas width="100%" height="100%" backgroundColor="#000000">
+			
+		<flashlight:Viewer id="viewer"  width="100%" height="100%"
+			horizontalAlign="center" verticalAlign="middle"
+			host="{host}"
+			port="{port}"
+			securityPort="{securityPort}"
+			password="{password}"
+			shared="{shared}"
+			viewOnly="{viewOnly}" />
+			
+		<mx:HBox width="100%" direction="horizontal" bottom="0"
+			backgroundColor="#CCCCCC" alpha="0.8"
+			paddingTop="3" paddingBottom="3" paddingRight="3" paddingLeft="3"
+			horizontalGap="4" horizontalAlign="right"
+			borderStyle="solid">
+			<comp:ConnectButton visible="{!autoConnect}" viewerApplication="{this}"/>
+			<comp:FullScreenButton />
+		</mx:HBox>
+	</mx:Canvas>
+</mx:Application>

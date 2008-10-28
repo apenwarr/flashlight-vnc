@@ -45,7 +45,8 @@ package com.wizhelp.flashlight.codec
 				    vnc.handleCopyImage(
 				    	new Point(copyRectSrcX, copyRectSrcY),
 				    	rfbReader.updateRect);
-				});
+				},
+				rfbReader);
 		}
 	}
 }

@@ -37,6 +37,8 @@ package com.wizhelp.utils
 	import flash.utils.setTimeout;
 	
 	import mx.controls.Text;
+	import mx.logging.ILogger;
+	import mx.logging.Log;
 	
 	public class Thread {
 		// ************* Constants **************
@@ -65,7 +67,7 @@ package com.wizhelp.utils
 		
 		// ************* Static fields **************
 		/** Logger */
-		private static var logger:Logger = new Logger(Thread);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.utils.Thread');
 		
 		/** Array of array of Threads, group by priorities */
 		private static var threads:Array = new Array();
@@ -78,7 +80,7 @@ package com.wizhelp.utils
 		public  var stack:Array = new Array();
 		
 		/** Function currently executed */
-		private var currentFunction:Function = null;
+		private var currentFunction:Object = null;
 		
 		/** State of this thread */
 		private var state:int = STATE_NOT_STARTED;
@@ -95,7 +97,7 @@ package com.wizhelp.utils
 		// ************* Functions **************
 		/** Constructor */
 		public  function Thread(runFunction:Function = null, priority:int = PRIORITY_NORMAL) {
-			logger.log(">> Thread()");
+			logger.debug(">> Thread()");
 			
 			var threadsSamePriority:Array = threads[priority];
 			
@@ -117,69 +119,83 @@ package com.wizhelp.utils
 			state = 	STATE_NOT_STARTED;
 			stack.push(this.run);
 			
-			logger.log("<< Thread()");
+			logger.debug("<< Thread()");
 		}
 		
 		/** Start this thread */
 		public function start():void {
-			logger.log(">> start()");
+			logger.debug(">> start()");
 			
 			switch (state) {
 				case STATE_NOT_STARTED:
 				case STATE_FINISHED:
-					awakeThread();
+					state = STATE_RUNNING;
 					break;
 				default:
 					throw new Error("Cannot start thread, bad state:"+state);
 			}
 			
-			logger.log("<< start()");
+			logger.debug("<< start()");
 		}
 		
 		public function run():void {
-			logger.log(">> run()");
+			logger.debug(">> run()");
 			
-			logger.log("<< run()");
+			logger.debug("<< run()");
+		}
+		
+		public function kill():void {
+			//logger.debug(">> kill()");
+			
+			state = STATE_FINISHED;
+			
+			//logger.debug("<< kill()");
 		}
 		
 		/** Sleep (time in ms) */
 		public function sleep(duration:int):void {
-			//logger.log(">> sleep()");
+			//logger.debug(">> sleep()");
 			
-			state = STATE_SLEEPING;
-			setTimeout(awakeThread,duration);
+			if (state == STATE_RUNNING) {
+				state = STATE_SLEEPING;
+				setTimeout(awakeThread,duration);
+			}
 			
-			//logger.log("<< sleep()");
+			//logger.debug("<< sleep()");
 		}
 		
 		/** Wait until the object send a specified event */
 		public function wait(object:EventDispatcher, eventType:String):void {
-			//logger.log(">> wait()");
+			//logger.debug(">> wait()");
 			
-			state = STATE_WAITING;
-			object.addEventListener(eventType, awakeThread);
-			waitingObject = object;
-			waitingEvent = eventType;
+			if (state == STATE_RUNNING) {
+				state = STATE_WAITING;
+				object.addEventListener(eventType, awakeThread);
+				waitingObject = object;
+				waitingEvent = eventType;
+			}
 			
-			//logger.log("<< wait()");
+			//logger.debug("<< wait()");
 		}
 		
 		/** Awake a sleeping or waiting thread */
 		private function awakeThread(event:Event = null):void {
-			//logger.log(">> awakeThread()");
+			//logger.debug(">> awakeThread()");
 			
-			if (state == STATE_WAITING) {
-				waitingObject.removeEventListener(waitingEvent,awakeThread);
+			if (state == STATE_WAITING || state == STATE_SLEEPING) {
+				if (state == STATE_WAITING) {
+					waitingObject.removeEventListener(waitingEvent,awakeThread);
+				}
+				
+				state = STATE_RUNNING;
 			}
 			
-			state = STATE_RUNNING;
-			
-			//logger.log("<< awakeThread()");
+			//logger.debug("<< awakeThread()");
 		}
 		
 		/** Run the next function in functions list for this thread */
 		private function runPart():void {
-			//logger.log(">> runPart()");
+			//logger.debug(">> runPart()");
 			
 			currentThread = this;
 			currentFunction = stack.shift();
@@ -187,9 +203,17 @@ package com.wizhelp.utils
 			
 			if (currentFunction !=null) {
 				try {
-					currentFunction.call(currentThread);
+					if (currentFunction is Function) {
+						currentFunction.call(currentThread);
+					} else if (currentFunction is ThreadFunction) {
+						currentFunction.call.apply(currentFunction.object);
+					} else {
+						throw new Error("Bad objec type in functions stack");
+					}
 				} catch (e:Error) {
-					logger.log("An error occured during thread execution : "+e.getStackTrace());
+					//logger.log(currentFunction.toString());
+					logger.error("An error occured during thread execution : "+e.name+":"+e.message);
+					state = STATE_FINISHED;
 				}
 			} else {
 				state = STATE_FINISHED;
@@ -198,7 +222,7 @@ package com.wizhelp.utils
 			currentThread = null;
 			currentFunction = null;
 			
-			//logger.log("<< runPart()");
+			//logger.debug("<< runPart()");
 		}
 		
 		public static var systemManager:MovieClip;

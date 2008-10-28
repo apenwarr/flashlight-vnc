@@ -56,7 +56,8 @@ package com.wizhelp.flashlight.codec
 					vnc.handleUpdateImage(
 						rfbReader.updateRect,
 						pixelsBuffer);
-				});
+				},
+				rfbReader);
 		}
 		
 	}

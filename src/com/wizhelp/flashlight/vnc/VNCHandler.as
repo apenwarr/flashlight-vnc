@@ -1,5 +1,6 @@
 package com.wizhelp.flashlight.vnc
 {
+	import flash.display.Loader;
 	import flash.display.BitmapData;
 	import flash.geom.Point;
 	import flash.geom.Rectangle;
@@ -28,5 +29,7 @@ package com.wizhelp.flashlight.vnc
 		function handleUpdateCursorPosition(x:int, y:int):void;
 		
 		function handleFrameBufferUpdated():void;
+		
+		function handleUpdateImageAsyncJpeg(dst:Rectangle, loader:Loader):void;
 	}
 }

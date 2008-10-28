@@ -32,7 +32,8 @@ package com.wizhelp.flashlight.vnc
 		public static const UPDATE_IMAGE_FILL_RECT:int = 1;
 		public static const UPDATE_IMAGE_COPY_RECT:int = 2;
 		public static const UPDATE_CURSOR_SHAPE:int = 3;
-		public static const UPDATE_CURSOR_POS:int = 4;	    
+		public static const UPDATE_CURSOR_POS:int = 4;	
+		public static const UPDATE_IMAGE_JPEG:int = 6;	    
 		
 		public var actionType:int;
 		public var actionTime:int;

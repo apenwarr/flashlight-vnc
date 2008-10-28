@@ -31,7 +31,6 @@ package com.wizhelp.flashlight.viewer
 	import com.wizhelp.flashlight.rfb.RFBReader;
 	import com.wizhelp.flashlight.rfb.RFBWriter;
 	import com.wizhelp.flashlight.vnc.VNCBase;
-	import com.wizhelp.utils.Logger;
 	import com.wizhelp.utils.Thread;
 	
 	import flash.display.Bitmap;
@@ -41,6 +40,7 @@ package com.wizhelp.flashlight.viewer
 	import flash.events.IOErrorEvent;
 	import flash.events.KeyboardEvent;
 	import flash.events.MouseEvent;
+	import flash.events.SecurityErrorEvent;
 	import flash.events.TextEvent;
 	import flash.geom.Point;
 	import flash.net.Socket;
@@ -55,18 +55,21 @@ package com.wizhelp.flashlight.viewer
 	import flash.utils.setTimeout;
 	
 	import mx.core.Application;
+	import mx.logging.ILogger;
+	import mx.logging.Log;
 	
 	public class Viewer extends VNCBase
 	{	
 		/** Logger */
-		private static var logger:Logger = new Logger(Viewer);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.viewer.Viewer');
 		
 		public var viewOnly:Boolean;
 		public var host:String;
 		public var port:int;
 		public var password:String;
 		public var securityPort:int;
-		public var connected:Boolean = false;
+		public var shared:Boolean;
+		[Bindable] public var connected:Boolean = false;
 		
 		private var viewerThread:ViewerThread;
 		
@@ -83,113 +86,126 @@ package com.wizhelp.flashlight.viewer
 		private var localCursor:Bitmap;
 		
 		public function connect():void {
-			logger.log(">> connect()");
+			logger.debug(">> connect()");
 			
-			if (socket == null) {
-				if (securityPort != -1) {
-					Security.loadPolicyFile("xmlsocket://"+host+":"+securityPort);
+			try {
+				if (socket == null) {
+					if (securityPort != -1) {
+						Security.loadPolicyFile("xmlsocket://"+host+":"+securityPort);
+					}
+					
+					if (viewOnly) {
+						var localCursorShape:BitmapData = new BitmapData(4,4,false,0xaaaaaa);
+						localCursor = new Bitmap(localCursorShape);
+					}
+					
+					socket = new Socket(host,port);
+					
+					socket.addEventListener(Event.CONNECT, handleConnect);
+					socket.addEventListener(Event.CLOSE, handleDisconnect);
+					socket.addEventListener(IOErrorEvent.IO_ERROR,handleIOError);
+					socket.addEventListener(SecurityErrorEvent.SECURITY_ERROR, handleSecurityError);
+					
+					rfbReader = new RFBReader(this,false);
+					
+					Thread.systemManager = Application.application.systemManager;
+					viewerThread = new ViewerThread(rfbReader,socket);
+					viewerThread.start();
 				}
-				
-				if (viewOnly) {
-					var localCursorShape:BitmapData = new BitmapData(4,4,false,0xaaaaaa);
-					localCursor = new Bitmap(localCursorShape);
-				}
-				
-				socket = new Socket(host,port);
-				
-				socket.addEventListener(Event.CONNECT, handleConnect);
-				socket.addEventListener(Event.CLOSE, handleDisconnect);
-				socket.addEventListener(IOErrorEvent.IO_ERROR,handleIOError);
-				
-				rfbReader = new RFBReader(this);
-				
-				Thread.systemManager = Application.application.systemManager;
-				viewerThread = new ViewerThread(rfbReader,socket);
-				viewerThread.start();
+			} catch (e:Error) {
+				logger.error("Unexpected error in connect : "+e);
 			}
 			
-			logger.log("<< connect()");
+			logger.debug("<< connect()");
 		}
 		
 		public function disconnect():void {
-			logger.log(">> disconnect()");
+			logger.debug(">> disconnect()");
 			
-			if (socket!=null) {
-				socket.removeEventListener(Event.CONNECT, handleConnect);
-				socket.removeEventListener(Event.CLOSE, handleDisconnect);
-				socket.removeEventListener(IOErrorEvent.IO_ERROR,handleIOError);
-				socket.flush();
-				socket.close();
-				socket = null;
-				
-				viewerThread = null;
-				rfbReader = null;
-				
-				removeEventListener( KeyboardEvent.KEY_UP, handleLocalKeyboardEvent );
-				removeEventListener( KeyboardEvent.KEY_DOWN, handleLocalKeyboardEvent );
-				//removeEventListener( FocusEvent.KEY_FOCUS_CHANGE, handleFocusLost );
-				
-				if (remoteScreen != null) {
-					remoteScreen.removeEventListener( MouseEvent.MOUSE_DOWN, handleLocalMouseEvent );
-					remoteScreen.removeEventListener( MouseEvent.MOUSE_UP, handleLocalMouseEvent );
-					remoteScreen.removeEventListener( MouseEvent.MOUSE_WHEEL, handleLocalMouseEvent );
-					remoteScreen.removeEventListener( MouseEvent.ROLL_OVER,handleLocalRollOver );
-					remoteScreen.removeEventListener( MouseEvent.ROLL_OUT,handleLocalRollOut );
-					remoteScreen.removeEventListener( MouseEvent.MOUSE_MOVE, handleLocalMouseEvent );
+			try {
+				if (socket!=null) {
+					socket.removeEventListener(Event.CONNECT, handleConnect);
+					socket.removeEventListener(Event.CLOSE, handleDisconnect);
+					socket.removeEventListener(IOErrorEvent.IO_ERROR,handleIOError);
+					socket.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, handleSecurityError);
+					socket.flush();
+					socket.close();
+					socket = null;
+					
+					viewerThread = null;
+					rfbReader = null;
+					connected = false;
+					
+					removeEventListener( KeyboardEvent.KEY_UP, handleLocalKeyboardEvent );
+					removeEventListener( KeyboardEvent.KEY_DOWN, handleLocalKeyboardEvent );
+					//removeEventListener( FocusEvent.KEY_FOCUS_CHANGE, handleFocusLost );
+					
+					if (remoteScreen != null) {
+						remoteScreen.removeEventListener( MouseEvent.MOUSE_DOWN, handleLocalMouseEvent );
+						remoteScreen.removeEventListener( MouseEvent.MOUSE_UP, handleLocalMouseEvent );
+						remoteScreen.removeEventListener( MouseEvent.MOUSE_WHEEL, handleLocalMouseEvent );
+						remoteScreen.removeEventListener( MouseEvent.ROLL_OVER,handleLocalRollOver );
+						remoteScreen.removeEventListener( MouseEvent.ROLL_OUT,handleLocalRollOut );
+						remoteScreen.removeEventListener( MouseEvent.MOUSE_MOVE, handleLocalMouseEvent );
+					}
 				}
+			} catch (e:Error) {
+				logger.error("Unexpected error in disconnect : "+e);
 			}
 			
-			logger.log("<< disconnect()");
+			logger.debug("<< disconnect()");
 		}
 		
 		private function handleConnect(event:Event):void {
-			logger.log(">> handleConnect()");
+			logger.debug(">> handleConnect()");
 			
 			connected = true;
 			
-			logger.log("<< handleConnect()");
+			logger.debug("<< handleConnect()");
 		}
 		
 		private function handleDisconnect(event:Event):void {
-			logger.log(">> handleDisconnect()");
+			logger.debug(">> handleDisconnect()");
 			
-			connected = false;
+			disconnect();
 			
-			logger.log("<< handleDisconnect()");
+			logger.debug("<< handleDisconnect()");
 		}
 		
 		private function handleIOError(event:IOErrorEvent):void {
-			logger.log(">> handleIOError()");
-			
-			logger.log(event.text);
-			
-			logger.log("<< handleIOError()");
+			logger.error("IO error when connecting : "+event.type+" "+event.text);
+			disconnect();
+		}
+		
+		private function handleSecurityError(event:SecurityError):void {
+			logger.error("Security error when connecting. Check security policy.  "+event.name+" "+event.message);
+			disconnect();
 		}
 		
 		override public function handleServerVersion(version:String):void {
-			logger.log(">> handleServerVersion()");
+			logger.debug(">> handleServerVersion()");
 			
 			super.handleServerVersion(version);
 			
 			socket.writeUTFBytes("RFB 003.003\n");
 			socket.flush();
 			
-			logger.log("<< handleServerVersion()");
+			logger.debug("<< handleServerVersion()");
 		}
 		
 		override public function handleNoAuth():void {
-			logger.log(">> handleNoAuth()");
+			logger.debug(">> handleNoAuth()");
 			
 			super.handleNoAuth();
 			
 			socket.writeByte(0);
 			socket.flush();
 			
-			logger.log("<< handleNoAuth()");
+			logger.debug("<< handleNoAuth()");
 		}
 		
 		override public function handleVNCAuth(challenge:ByteArray):void {
-			logger.log(">> handleVNCAuth()");
+			logger.debug(">> handleVNCAuth()");
 			
 			super.handleVNCAuth(challenge);
 			
@@ -203,23 +219,23 @@ package com.wizhelp.flashlight.viewer
 			socket.writeBytes(challenge);
 			socket.flush();
 			
-			logger.log("<< handleVNCAuth()");
+			logger.debug("<< handleVNCAuth()");
 		}
 		
 		override public function handleAuthOk():void {
-			logger.log(">> handleAuthOk()");
+			logger.debug(">> handleAuthOk()");
 			
 			super.handleAuthOk();
 			
-			socket.writeByte(0);
+			socket.writeByte(shared ? 1 : 0);
 			socket.flush();
 			
-			logger.log("<< handleAuthOk()");
+			logger.debug("<< handleAuthOk()");
 		}
 		
 		private var textInput:TextField;
 		override public function handleServerInit(desktopName:String, dimension:Point):void {
-			logger.log(">> handleServerInit()");
+			logger.debug(">> handleServerInit()");
 			
 			super.handleServerInit(desktopName,dimension);
 			
@@ -262,7 +278,7 @@ package com.wizhelp.flashlight.viewer
 				RFBConst.EncodingCopyRect,
 				RFBConst.EncodingLastRect,
 				RFBConst.EncodingCompressLevel0 + 9,
-				RFBConst.EncodingQualityLevel0 +6,
+				RFBConst.EncodingQualityLevel0 +5,
 				//RFBConst.EncodingXCursor,
 				RFBConst.EncodingRichCursor,
 				RFBConst.EncodingPointerPos
@@ -270,14 +286,14 @@ package com.wizhelp.flashlight.viewer
 			
 			RFBWriter.writeEncodings(socket, encodings);
 			
-			var pixelFormat:RFBPixelFormat = RFBPixelFormat.FORMAT_16BPP;
+			var pixelFormat:RFBPixelFormat = RFBPixelFormat.FORMAT_24BPP;
 			
 			rfbReader.setPixelFormat(pixelFormat);
 			    
 			RFBWriter.writeSetPixelFormat(socket, pixelFormat);
 			RFBWriter.writeFrameBufferUpdate(socket, false, 0, 0, rfbReader.framebufferWidth, rfbReader.framebufferHeight);
 			
-			logger.log("<< handleServerInit()");
+			logger.debug("<< handleServerInit()");
 		}
 		
 		override public function handleFrameBufferUpdated():void {

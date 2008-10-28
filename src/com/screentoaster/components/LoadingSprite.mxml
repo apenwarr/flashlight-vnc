@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="80" height="80">
+	
+	<mx:Script>
+		<![CDATA[
+			[Embed(source="/assets/circle.png")] [Bindable] private var circleImage:Class;
+			
+			private var running:Boolean = true;
+			[Bindable] private var frameNumber:Number = 0;
+			
+			override public function set visible(value:Boolean):void {
+				if (value) {
+					addEventListener(Event.ENTER_FRAME, updateFrameCount);
+				} else {
+					removeEventListener(Event.ENTER_FRAME, updateFrameCount);
+				}
+				super.visible = value;
+			}
+			
+			private function updateFrameCount(event:Event):void {
+				frameNumber+=0.8;
+			}
+			
+			private function calcAlpha(number:int):Number {
+				return (0.8-0.1*(number % 8));
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Image source="{circleImage}" x="9" y="9" alpha="{calcAlpha(frameNumber+7)}"/>
+	<mx:Image source="{circleImage}" x="30" y="0" alpha="{calcAlpha(frameNumber+6)}"/>
+	<mx:Image source="{circleImage}" x="51" y="9" alpha="{calcAlpha(frameNumber+5)}"/>
+	<mx:Image source="{circleImage}" x="60" y="30" alpha="{calcAlpha(frameNumber+4)}"/>
+	<mx:Image source="{circleImage}" x="51" y="51" alpha="{calcAlpha(frameNumber+3)}"/>
+	<mx:Image source="{circleImage}" x="30" y="60" alpha="{calcAlpha(frameNumber+2)}"/>
+	<mx:Image source="{circleImage}" x="9" y="51" alpha="{calcAlpha(frameNumber+1)}"/>
+	<mx:Image source="{circleImage}" x="0" y="30" alpha="{calcAlpha(frameNumber)}"/>
+</mx:Canvas>

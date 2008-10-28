@@ -16,10 +16,7 @@
       <sourceAttachmentPathEntry kind="3" linkType="4" path="${PROJECT_FRAMEWORKS}/libs/framework.swc" sourcepath="${PROJECT_FRAMEWORKS}/source" useDefaultLinkType="true"/>
     </sourceAttachmentPath>
   </compiler>
-  <applications>
-    <application path="WizViewer.mxml"/>
-    <application path="WizPlayer.mxml"/>
-  </applications>
+  <applications/>
   <modules/>
   <buildCSSFiles/>
 </actionScriptProperties>

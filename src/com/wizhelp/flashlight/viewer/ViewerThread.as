@@ -27,15 +27,18 @@
 package com.wizhelp.flashlight.viewer
 {
 	import com.wizhelp.flashlight.rfb.RFBReader;
-	import com.wizhelp.utils.Logger;
 	import com.wizhelp.utils.Thread;
 	
 	import flash.events.Event;
 	import flash.events.ProgressEvent;
 	import flash.net.Socket;
+	import flash.utils.getQualifiedClassName;
+	
+	import mx.logging.ILogger;
+	import mx.logging.Log;
 	
 	public class ViewerThread extends Thread {
-		private static var logger:Logger = new Logger(ViewerThread);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.viewer.ViewerThread');
 		
 		private var rfb:RFBReader;
 		private var socket:Socket;
@@ -48,7 +51,7 @@ package com.wizhelp.flashlight.viewer
 		}
 		
 		override public function run():void {
-			logger.log(">> run()");
+			logger.debug(">> run()");
 			
 			if (socket.connected) {
 				runRFB();
@@ -57,7 +60,7 @@ package com.wizhelp.flashlight.viewer
 				wait(socket,Event.CONNECT);
 			}
 			
-			logger.log("<< run()");
+			logger.debug("<< run()");
 		}
 		
 		private function runRFB():void {
@@ -73,7 +76,7 @@ package com.wizhelp.flashlight.viewer
 					stack.push(runRFB);
 				}
 			} else {
-				logger.log("Socket closed");	
+				logger.debug("Socket closed");	
 			}
 			
 			//logger.log("<< runRFB()");

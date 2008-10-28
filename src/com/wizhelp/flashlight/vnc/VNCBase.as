@@ -27,33 +27,36 @@
 package com.wizhelp.flashlight.vnc
 {
 	import com.wizhelp.utils.BufferPool;
-	import com.wizhelp.utils.Logger;
 	
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
+	import flash.display.Loader;
 	import flash.display.PixelSnapping;
-	import flash.events.Event;
 	import flash.events.MouseEvent;
+	import flash.geom.Matrix;
 	import flash.geom.Point;
 	import flash.geom.Rectangle;
 	import flash.utils.ByteArray;
 	
+	import mx.controls.Alert;
 	import mx.controls.Image;
+	import mx.logging.ILogger;
+	import mx.logging.Log;
 	
 	[Event( name="remoteMouseMove", type="flash.events.MouseEvent" )]
 	
 	public class VNCBase extends Image implements VNCHandler
 	{	
 		/** Logger */
-		private static var logger:Logger = new Logger(VNCBase);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.vnc.VNCBase');
 		
 		public function VNCBase() {
-			logger.log(">> init()");
+			logger.debug(">> init()");
 			
-			source = new Bitmap(null,PixelSnapping.AUTO,true);
+			//source = new Bitmap(null,PixelSnapping.AUTO,true);
 			this.addEventListener(Event.ENTER_FRAME, renderRemoteScreen);
 			
-			logger.log("<< init()");
+			logger.debug("<< init()");
 		}
 		
 		protected var remoteScreen:VNCScreen;
@@ -71,8 +74,24 @@ package com.wizhelp.flashlight.vnc
 		[Bindable] public var preBufferingPosition:int = -1;
 		private var imageLocked:Boolean = false;
 		
+		private var clipRectangle:Rectangle = null;
+		
+		public function reset():void {
+			currentPosition = 0;
+			preBufferingPosition = -1;
+			imageLocked = false;
+			source = null;
+			//new Bitmap(null,PixelSnapping.AUTO,true);
+			clipRectangle = null;
+			actionStack = new Array();
+		}
+		
+		public function setClipRectangle(clipRectangle:Rectangle):void {
+			this.clipRectangle = clipRectangle;
+		}
+		
 		public function handleServerVersion(version:String):void {
-			logger.log(version);
+			logger.debug(version.replace('\n',''));
 		}
 		
 		public function handleNoAuth():void {
@@ -85,16 +104,28 @@ package com.wizhelp.flashlight.vnc
 		}
 		
 		public function handleServerInit(desktopName:String, dimension:Point):void {
-			logger.log(">> handleServerInit()");
+			logger.debug(">> handleServerInit()");
 			
 			// Create new remote screen
-			remoteScreen = new VNCScreen();
-			remoteScreen.fixedWidth = dimension.x;
-			remoteScreen.fixedHeigth = dimension.y;
-			remoteScreen.scrollRect = new Rectangle(0,0,dimension.x,dimension.y);
+			if (remoteScreen ==  null) {
+				remoteScreen = new VNCScreen();
+			} else {
+				remoteScreen.removeChild(remoteScreenImage);
+				remoteScreen.removeChild(remoteScreenCursor);
+			}
+			
+			if (clipRectangle == null) {
+				remoteScreen.fixedWidth = dimension.x;
+				remoteScreen.fixedHeigth = dimension.y;
+				remoteScreen.scrollRect = new Rectangle(0,0,dimension.x,dimension.y);
+			} else {
+				remoteScreen.fixedWidth = clipRectangle.width;
+				remoteScreen.fixedHeigth = clipRectangle.height;
+				remoteScreen.scrollRect = new Rectangle(0,0,clipRectangle.width,clipRectangle.height);
+			}
 			
 			// Init screen image
-			remoteScreenData = new BitmapData(dimension.x, dimension.y, false, 0xFF000000);
+			remoteScreenData = new BitmapData(dimension.x, dimension.y, true, 0x00000000);
 			remoteScreenImage = new Bitmap(remoteScreenData,PixelSnapping.AUTO,true);
 			
 			// Init screen cursor
@@ -102,15 +133,28 @@ package com.wizhelp.flashlight.vnc
 			remoteScreenCursor.smoothing = true;
 			remoteScreenCursorHotSpotX = 1;
 			remoteScreenCursorHotSpotY = 1;
+			if (_bigCursor) {
+				remoteScreenCursor.scaleX = 2;
+				remoteScreenCursor.scaleY = 2;
+			} else {
+				remoteScreenCursor.scaleX = 1;
+				remoteScreenCursor.scaleY = 1;
+			}
+			remoteScreenCursor.visible = false;
 			
 			// Add cursor and image to screen
 			remoteScreen.addChild(remoteScreenImage);
 			remoteScreen.addChild(remoteScreenCursor);
 			
+			if (clipRectangle != null) {
+				remoteScreenImage.x = -clipRectangle.x;
+				remoteScreenImage.y = -clipRectangle.y;
+			}
+			
 			// Set screen as the image's source
 			source = remoteScreen;
 			
-			logger.log("<< handleServerInit()");
+			logger.debug("<< handleServerInit()");
 		}
 				
 		public function handleFrameBufferUpdated():void {
@@ -159,6 +203,21 @@ package com.wizhelp.flashlight.vnc
 			actionStack.push(action);
 		}
 		
+		public function handleUpdateImageAsyncJpeg(dst:Rectangle, loader:Loader):void {
+			var action:VNCAction = new VNCAction(VNCAction.UPDATE_IMAGE_JPEG,preBufferingPosition);
+			
+			action.dst = dst;
+			action.loader = loader;
+			
+			actionStack.push(action);
+		}
+		
+		protected function startWaiting():void {
+		}
+		
+		protected function stopWaiting(event:Event=null):void {
+		}
+		
 		private function renderRemoteScreen(event:Event):void {
 			var actionUpdateCursorPos:VNCAction = null;
 			var actionUpdateCursorShape:VNCAction = null;
@@ -204,6 +263,25 @@ package com.wizhelp.flashlight.vnc
 					    remoteScreenData.setPixels(action.dst,copyRect);
 					    BufferPool.releaseDataBuffer(copyRect);
 					break;
+					case VNCAction.UPDATE_IMAGE_JPEG:
+						if (!imageLocked) {
+							imageLocked=true;
+							remoteScreenData.lock();
+						}
+						
+						var jpegImage:Bitmap = action.loader.content as Bitmap;
+						
+						if (jpegImage) {
+						    remoteScreenData.copyPixels(jpegImage.bitmapData, jpegImage.bitmapData.rect, 
+						    	new Point(action.dst.x,action.dst.y));
+						} else {
+							var loader:Loader = action.loader as Loader;
+							loader.addEventListener(Event.COMPLETE,stopWaiting);
+							actionStack.unshift(action);
+							currentPosition = action.actionTime - 1;
+							startWaiting();
+						}
+					break;
 					case VNCAction.UPDATE_CURSOR_SHAPE:
 						actionUpdateCursorShape = action;
 					break;
@@ -225,6 +303,7 @@ package com.wizhelp.flashlight.vnc
 		protected function updateRemoteCursorShape(hotSpotX:int, hotSpotY:int,cursorShape:BitmapData):void {
 			remoteScreenCursor.bitmapData = cursorShape;
 			remoteScreenCursor.smoothing = true;
+			remoteScreenCursor.visible = true;
 			remoteScreenCursor.x += (remoteScreenCursorHotSpotX-hotSpotX)*remoteScreenCursor.scaleX;
 			remoteScreenCursor.y += (remoteScreenCursorHotSpotY-hotSpotY)*remoteScreenCursor.scaleY;
 			remoteScreenCursorHotSpotX = hotSpotX;
@@ -232,13 +311,32 @@ package com.wizhelp.flashlight.vnc
 		}
 		
 		protected function updateRemoteCursorPosition(posX:int,posY:int):void {
+			if (clipRectangle != null) {
+				posX -= clipRectangle.x;
+				posY -= clipRectangle.y;
+			}
+			
 			remoteScreenCursor.x = posX - remoteScreenCursorHotSpotX*remoteScreenCursor.scaleX;
 			remoteScreenCursor.y = posY - remoteScreenCursorHotSpotY*remoteScreenCursor.scaleY;
+			remoteScreenCursor.visible = true;
 			
 			var event:MouseEvent = new MouseEvent("remoteMouseMove");
 			event.localX = posX ;
 			event.localY = posY;
 			dispatchEvent(event);
+		}
+		
+		public function captureCurrentImage():BitmapData {
+			var image:BitmapData;
+			
+			if (clipRectangle != null) {
+				image = new BitmapData(clipRectangle.width, clipRectangle.height, false, 0xFF000000);
+				image.draw(remoteScreenData,new Matrix(1,0,0,1,-clipRectangle.x,-clipRectangle.y));			
+			} else{
+				image = new BitmapData(remoteScreenData.width, remoteScreenData.height, false, 0xFF000000);
+				image.draw(remoteScreenData);			
+			}
+			return image;
 		}
 		
 		private var _bigCursor:Boolean = false;

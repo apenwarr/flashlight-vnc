@@ -33,7 +33,6 @@ package com.wizhelp.flashlight.rfb
 	import com.wizhelp.flashlight.codec.CodecTight;
 	import com.wizhelp.flashlight.thread.DataHandler;
 	import com.wizhelp.flashlight.vnc.VNCHandler;
-	import com.wizhelp.utils.Logger;
 	
 	import flash.display.BitmapData;
 	import flash.geom.Point;
@@ -41,26 +40,29 @@ package com.wizhelp.flashlight.rfb
 	import flash.utils.ByteArray;
 	import flash.utils.IDataInput;
 	
+	import mx.logging.ILogger;
+	import mx.logging.Log;
+	
 	public class RFBReader
 	{
-		private static var logger:Logger = new Logger(RFBReader);
+		private static var logger:ILogger = Log.getLogger('com.wizhelp.flashlight.rfb.RFBReader');
     
     	public var framebufferWidth:int;
 		public var framebufferHeight:int;
 		private var bitsPerPixel:int;
 		private var depth:int;
-		private var bigEndian:Boolean;
-		private var trueColour:Boolean;
-		private var redMax:int;
-		private var greenMax:int;
-		private var blueMax:int;
-		private var redShift:int;
-		private var greenShift:int;
-		private var blueShift:int;
-		private var redMask:int;
-		private var greenMask:int;
-		private var blueMask:int;
-		private var desktopName:String;
+		public var bigEndian:Boolean;
+		public var trueColour:Boolean;
+		public var redMax:int;
+		public var greenMax:int;
+		public var blueMax:int;
+		public var redShift:int;
+		public var greenShift:int;
+		public var blueShift:int;
+		public var redMask:int;
+		public var greenMask:int;
+		public var blueMask:int;
+		public var desktopName:String;
 		public var bytesPerPixel:int;
 		public var bytesPerPixelDepth:int;
 		
@@ -88,9 +90,9 @@ package com.wizhelp.flashlight.rfb
 		public var input:IDataInput;
 		
 		
-		public function RFBReader(vncHandler:VNCHandler)
+		public function RFBReader(vncHandler:VNCHandler,async:Boolean)
 		{
-			encodingTight = new CodecTight(vncHandler, this);
+			encodingTight = new CodecTight(vncHandler, this,async);
 			encodingCopyRect = new CodecCopyRect(vncHandler, this);
 			encodingRaw = new CodecRaw(vncHandler, this);
 			encodingRichCursor = new CodecRichCursor(vncHandler, this);
@@ -110,15 +112,20 @@ package com.wizhelp.flashlight.rfb
 		
 		public function run():void {
 			var rfbHandler:DataHandler = rfbStack.shift();
-			logger.timeStart("total");
-			rfbHandler.call(input);
-			logger.timeEnd("total");
+			//logger.timeStart("total");
+			try {
+				rfbHandler.call.apply(rfbHandler.object,[input]);
+			} catch (e:Error) {
+				logger.error("An unexpected error occured when reading RFB protocol : "+e.errorID+" "+e.name+" "+e.message+" "+e.getStackTrace());
+				throw e;
+			}
+			//logger.timeEnd("total");
 		}
 		
 		private var handleRFB:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
-				logger.log(">> handleRFB()");
+				logger.debug(">> handleRFB()");
 				
 				rfbStack.push(handleRFBVersion);
 				rfbStack.push(handleRFBSecurity);
@@ -126,29 +133,29 @@ package com.wizhelp.flashlight.rfb
 				rfbStack.push(handleDesktopName);
 				rfbStack.push(handleServerMessage);
 				
-				logger.log("<< handleRFB()");
-			});
+				logger.debug("<< handleRFB()");
+			},
+			this);
 		
 		private var handleRFBVersion:DataHandler = new DataHandler(
 			12,
 			function(stream:IDataInput):void {
-				logger.log(">> handleRFBVersion()");
+				logger.debug(">> handleRFBVersion()");
 				
 				var version:String = stream.readUTFBytes(12);
 				vncHandler.handleServerVersion(version);
 				//output.text+="RFB Version : "+version;
 				
-				logger.log("<< handleRFBVersion()");
-			});
+				logger.debug("<< handleRFBVersion()");
+			},
+			this);
 		
 		private var handleRFBSecurity:DataHandler = new DataHandler(
 			4,
 			function(stream:IDataInput):void {
-				logger.log(">> handleRFBSecurity()");
+				logger.debug(">> handleRFBSecurity()");
 				
 				var secType:int = stream.readUnsignedInt();
-				
-				logger.log(secType);
 				
 				switch (secType) {
 					case RFBConst.SecTypeNone:
@@ -163,8 +170,9 @@ package com.wizhelp.flashlight.rfb
 						throw new Error("Unsuported security type : "+ secType);
 				}
 				
-				logger.log("<< handleRFBSecurity()");
-			});
+				logger.debug("<< handleRFBSecurity()");
+			},
+			this);
 			
 		private var handleVNCAuth:DataHandler = new DataHandler(
 			16,
@@ -174,11 +182,14 @@ package com.wizhelp.flashlight.rfb
 				stream.readBytes(challenge);
 				
 				vncHandler.handleVNCAuth(challenge);
-			});
+			},
+			this);
 			
 		private var handleRFBSecurityResult:DataHandler = new DataHandler(
 			4,
 			function(stream:IDataInput):void {
+				logger.debug(">> handleRFBSecurityResult()");
+				
 				var authResult:int = stream.readUnsignedInt();
 				
 				switch (authResult) {
@@ -192,7 +203,10 @@ package com.wizhelp.flashlight.rfb
 					default :
 						throw new Error("Unsuported security result : "+ authResult);
 				}
-			});
+				
+				logger.debug("<< handleRFBSecurityResult()");
+			},
+			this);
 		
 		private var handleServerInit:DataHandler = new DataHandler(
 			24,
@@ -217,7 +231,8 @@ package com.wizhelp.flashlight.rfb
 			    handleDesktopName.bytesNeeded = stream.readInt();
 			   
 				setPixelFormat(pixelFormat);
-			});
+			},
+			this);
 			
 		public function setPixelFormat(pixelFormat:RFBPixelFormat):void {
 			trueColour = pixelFormat.trueColour;
@@ -244,20 +259,22 @@ package com.wizhelp.flashlight.rfb
 				if ((greenMax & i) == 0) greenShift++;
 				if ((blueMax & i) == 0) blueShift++;
 			}
+			
+			if (Log.isDebug()) {
+				logger.debug("bytesPerPixel : "+bytesPerPixel);
+				logger.debug("bitsPerPixel : "+bitsPerPixel);
+				logger.debug("depth : "+depth);
+				logger.debug("trueColour : "+trueColour);
+				logger.debug("bigEndian : "+bigEndian);
 				
-			logger.log("bytesPerPixel : "+bytesPerPixel);
-			logger.log("bitsPerPixel : "+bitsPerPixel);
-			logger.log("depth : "+depth);
-			logger.log("trueColour : "+trueColour);
-			logger.log("bigEndian : "+bigEndian);
-			
-			logger.log("redMask : "+redMask.toString(2));
-			logger.log("greenMask : "+greenMask.toString(2));
-			logger.log("blueMask : "+blueMask.toString(2));
-			
-			logger.log("redShift : "+redShift);
-			logger.log("greenShift : "+greenShift);
-			logger.log("blueShift : "+blueShift);
+				logger.debug("redMask : "+redMask.toString(2));
+				logger.debug("greenMask : "+greenMask.toString(2));
+				logger.debug("blueMask : "+blueMask.toString(2));
+				
+				logger.debug("redShift : "+redShift);
+				logger.debug("greenShift : "+greenShift);
+				logger.debug("blueShift : "+blueShift);
+			}
 		}
 			
 		private var handleDesktopName:DataHandler = new DataHandler(
@@ -265,7 +282,8 @@ package com.wizhelp.flashlight.rfb
 			function(stream:IDataInput):void {
 				desktopName = stream.readUTFBytes(handleDesktopName.bytesNeeded);
 				vncHandler.handleServerInit(desktopName, new Point(framebufferWidth,framebufferHeight));
-			});
+			},
+			this);
 		
 		private var handleServerMessage:DataHandler = new DataHandler(
 			1,
@@ -287,7 +305,8 @@ package com.wizhelp.flashlight.rfb
 				}
 				
 				rfbStack.push(handleServerMessage);
-			});
+			},
+			this);
 			
 		private var handleServerCutText:DataHandler = new DataHandler(
 			4,
@@ -300,14 +319,16 @@ package com.wizhelp.flashlight.rfb
 				handleServerCutTextData.bytesNeeded = textSize;
 				
 				rfbStack.unshift(handleServerCutTextData);
-			});
+			},
+			this);
 		
 		private var handleServerCutTextData:DataHandler = new DataHandler(
 			0,
 			function(stream:IDataInput):void {
 				var remoteText:String = stream.readUTFBytes(handleServerCutTextData.bytesNeeded);
-				logger.log("remote text : "+remoteText);
-			});
+				logger.debug("remote text : "+remoteText);
+			},
+			this);
 		
 		private var handleFramebufferUpdate:DataHandler = new DataHandler(
 			3,
@@ -323,7 +344,8 @@ package com.wizhelp.flashlight.rfb
 					//newImageData.lock();
 					rfbStack.unshift(handleFramebufferUpdateRect);
 				}
-			});
+			},
+			this);
 		
 		private var handleFramebufferUpdateRect:DataHandler = new DataHandler(
 			12,
@@ -386,7 +408,8 @@ package com.wizhelp.flashlight.rfb
 	    		if (updateNRects == 0) {
 					vncHandler.handleFrameBufferUpdated();
 	    		}
-			});
+			},
+			this);
 		
 		/*public function pause(stream:IDataInput):void {
 			tmpStream = stream;

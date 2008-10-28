@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml"
+	icon="{rewindIcon}" textAlign="center"
+	paddingLeft="4" paddingRight="4"
+	width="24"
+	click="handleRewind()">
+	
+	<mx:Script>
+		<![CDATA[
+			import flash.utils.getQualifiedClassName;
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			import com.wizhelp.flashlight.player.Player;
+			
+			[Embed(source="/assets/rewind.png")] [Bindable] private var rewindIcon:Class;
+			
+			private var logger:ILogger = Log.getLogger('com.screentoaster.components.PlayButton');
+			public  var player:Player;
+			
+			private function handleRewind():void {
+			 	logger.debug(">> handleRewind()");
+				
+				try {
+					player.rewind();
+				} catch (e:Error) {
+					logger.error("An unexpected error occured during handleRewind : "+e.errorID+" "+e.name+" "+e.message+" "+e.getStackTrace());
+				}
+				
+			 	logger.debug("<< handleRewind()");
+			}
+			
+		]]>
+	</mx:Script>
+</mx:Button>

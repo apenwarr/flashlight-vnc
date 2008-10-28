@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Button xmlns:mx="http://www.adobe.com/2006/mxml"
+	label="{viewerApplication.viewer.connected ? 'Disconnect' : 'Connect'}"
+	click="handleConnect()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.managers.PopUpManager;
+			import com.wizhelp.flashlight.viewer.Viewer;
+			import flash.utils.getQualifiedClassName;
+			import mx.logging.Log;
+			import mx.logging.ILogger;
+			import com.wizhelp.flashlight.viewer.Viewer;
+			
+			private var logger:ILogger = Log.getLogger('com.screentoaster.components.ConnectButton');
+			[Bindable] public  var viewerApplication:FLViewer;
+			private var popup:ViewerPopup;
+			
+			private function handleConnect():void {
+			 	logger.debug(">> handleConnect()");
+			 	
+			 	try {
+			 		if (!viewerApplication.viewer.connected) {
+					 	popup = new ViewerPopup();
+					 	popup.viewer = viewerApplication;
+					 	popup.addEventListener(CloseEvent.CLOSE, handleCloseEvent);
+						PopUpManager.addPopUp(popup,viewerApplication,true);
+						PopUpManager.centerPopUp(popup);
+					} else {
+						viewerApplication.viewer.disconnect();
+					}
+				} catch (e:Error) {
+			 		logger.error("Unexpected error in handleConnect: "+e);
+				} 
+				
+			 	logger.debug("<< handleConnect()");
+			}
+			
+			private function handleCloseEvent(event:CloseEvent):void {
+			 	logger.debug(">> handleCloseEvent()");
+			 	
+			 	try {
+			 		if (!popup.canceled) {
+			 			viewerApplication.viewer.connect();
+			 		}
+				} catch (e:Error) {
+			 		logger.error("Unexpected error in handleConnect: "+e);
+				} 
+			 	
+			 	logger.debug("<< handleCloseEvent()");
+			}
+		]]>
+	</mx:Script>
+</mx:Button>

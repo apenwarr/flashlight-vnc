@@ -41,7 +41,8 @@ package com.wizhelp.flashlight.codec
 					vnc.handleUpdateCursorPosition(
 						rfbReader.updateRectX,
 						rfbReader.updateRectY);
-				});
+				},
+				rfbReader);
 		}
 		
 	}
