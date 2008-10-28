@@ -16,7 +16,10 @@
       <sourceAttachmentPathEntry kind="3" linkType="4" path="${PROJECT_FRAMEWORKS}/libs/framework.swc" sourcepath="${PROJECT_FRAMEWORKS}/source" useDefaultLinkType="true"/>
     </sourceAttachmentPath>
   </compiler>
-  <applications/>
+  <applications>
+    <application path="FLPlayer.mxml"/>
+    <application path="FLViewer.mxml"/>
+  </applications>
   <modules/>
   <buildCSSFiles/>
 </actionScriptProperties>
