@@ -30,6 +30,7 @@
 			[Bindable] private var debug:Boolean = false;
 			[Bindable] private var logFunction:String = null;
 			[Bindable] private var autoConnect:Boolean =  false;
+			[Bindable] private var toolBar:Boolean =  true;
 
 			private function init():void {
 				host = parameters.host ? parameters.host : 'localhost';
@@ -42,6 +43,7 @@
 				debug = parameters.debug ? parameters.debug : false;
 				logFunction = parameters.logFunction ? parameters.logFunction : null;
 				autoConnect = parameters.autoConnect ? parameters.autoConnect : false;
+				if (parameters.toolBar != null) toolBar = Boolean(int(parameters.toolBar));
 				
 				if (debug) {
 					var debugBox:Box = new Box();
@@ -107,6 +109,7 @@
 			backgroundColor="#CCCCCC" alpha="0.8"
 			paddingTop="3" paddingBottom="3" paddingRight="3" paddingLeft="3"
 			horizontalGap="4" horizontalAlign="right"
+			visible="{toolBar}"
 			borderStyle="solid">
 			<comp:ConnectButton visible="{!autoConnect}" viewerApplication="{this}"/>
 			<comp:FullScreenButton />
