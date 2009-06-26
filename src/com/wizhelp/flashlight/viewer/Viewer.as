@@ -154,6 +154,7 @@ package com.wizhelp.flashlight.viewer
 			}
 			
 			logger.debug("<< disconnect()");
+			reset();
 		}
 		
 		private function handleConnect(event:Event):void {
