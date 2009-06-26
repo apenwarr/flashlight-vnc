@@ -69,6 +69,7 @@ package com.wizhelp.flashlight.viewer
 		public var password:String;
 		public var securityPort:int;
 		public var shared:Boolean;
+		public var autoReconnect:Boolean;
 		[Bindable] public var connected:Boolean = false;
 		
 		private var viewerThread:ViewerThread;
@@ -170,6 +171,8 @@ package com.wizhelp.flashlight.viewer
 			logger.debug(">> handleDisconnect()");
 			
 			disconnect();
+			if (autoReconnect)
+				setTimeout(connect, 1000);
 			
 			logger.debug("<< handleDisconnect()");
 		}

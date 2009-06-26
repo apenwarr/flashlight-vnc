@@ -30,6 +30,7 @@
 			[Bindable] private var debug:Boolean = false;
 			[Bindable] private var logFunction:String = null;
 			[Bindable] private var autoConnect:Boolean =  false;
+			[Bindable] private var autoReconnect:Boolean =  false;
 			[Bindable] private var toolBar:Boolean =  true;
 			
 			private function tobool(x:String,def:Boolean):Boolean {
@@ -49,6 +50,7 @@
 				debug = tobool(parameters.debug, debug);
 				logFunction = parameters.logFunction ? parameters.logFunction : null;
 				autoConnect = tobool(parameters.autoConnect, autoConnect);
+				autoReconnect = tobool(parameters.autoReconnect, autoReconnect);
 				toolBar = tobool(parameters.toolBar, toolBar);
 				
 				if (debug) {
@@ -109,7 +111,8 @@
 			securityPort="{securityPort}"
 			password="{password}"
 			shared="{shared}"
-			viewOnly="{viewOnly}" />
+			viewOnly="{viewOnly}"
+			autoReconnect="{autoReconnect}" />
 			
 		<mx:HBox width="100%" direction="horizontal" bottom="0"
 			backgroundColor="#CCCCCC" alpha="0.8"
