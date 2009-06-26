@@ -31,19 +31,25 @@
 			[Bindable] private var logFunction:String = null;
 			[Bindable] private var autoConnect:Boolean =  false;
 			[Bindable] private var toolBar:Boolean =  true;
+			
+			private function tobool(x:String,def:Boolean):Boolean {
+				if (x != null)
+					return Boolean(int(x));
+				return def;
+			}
 
 			private function init():void {
 				host = parameters.host ? parameters.host : 'localhost';
 				port = parameters.port ? parameters.port : 5900;
 				password = parameters.password ? parameters.password : null;
 				securityPort = parameters.securityPort ? parameters.securityPort : -1;
-				shared = parameters.shared ? parameters.shared : false;
-				viewOnly = parameters.viewOnly ? parameters.viewOnly : false;
-			
-				debug = parameters.debug ? parameters.debug : false;
+				shared = tobool(parameters.shared, shared);
+				viewOnly = tobool(parameters.viewOnly, viewOnly);
+				
+				debug = tobool(parameters.debug, debug);
 				logFunction = parameters.logFunction ? parameters.logFunction : null;
-				autoConnect = parameters.autoConnect ? parameters.autoConnect : false;
-				if (parameters.toolBar != null) toolBar = Boolean(int(parameters.toolBar));
+				autoConnect = tobool(parameters.autoConnect, autoConnect);
+				toolBar = tobool(parameters.toolBar, toolBar);
 				
 				if (debug) {
 					var debugBox:Box = new Box();
