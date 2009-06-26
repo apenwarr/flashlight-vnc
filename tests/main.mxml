@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical" viewSourceURL="srcview/index.html">
+	<mx:Script>
+		<![CDATA[
+			import com.wizhelp.fzlib.FZlib;
+			import com.wizhelp.fzlib.ZStream;
+			
+			private function CheckError(z:ZStream, err:int, msg:String):void {
+				
+				if (err!=FZlib.Z_OK) {
+					if (z.msg!=null)
+						output.text+=(z.msg);
+					output.text=msg+" error: "+err;
+					throw new Error(msg+" error: "+err, err);
+				}
+				
+			}		
+	
+
+			/*
+			 *
+			 * First Test: deflate() with small buffers
+			 *
+			 */ 
+			private function FirstTest():void {
+				var timeStart:Number = (new Date()).getTime();
+				
+				var hello:ByteArray = new ByteArray();
+				var stringToCompress:String = "hello, hello";
+				hello.writeUTFBytes(stringToCompress);
+				hello.writeByte(0);
+				
+				var err:int;
+				var comprLen:int=40000;
+				var uncomprLen:int=comprLen;
+				var compr:ByteArray=new ByteArray();
+				compr.length=comprLen;
+ 				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+
+				var c_stream:ZStream=new ZStream();
+				
+				err=c_stream.deflateInit(FZlib.Z_DEFAULT_COMPRESSION);
+   				CheckError(c_stream, err, "deflateInit");
+   				
+   				c_stream.next_in=hello;
+   				c_stream.next_in_index=0;
+
+   				c_stream.next_out=compr;
+   				c_stream.next_out_index=0;
+
+  				while(c_stream.total_in!=hello.length && c_stream.total_out<comprLen){
+  					
+					c_stream.avail_in=c_stream.avail_out=1; // force small buffers
+					err=c_stream.deflate(FZlib.Z_NO_FLUSH);
+					CheckError(c_stream, err, "deflate");
+					
+				}
+
+ 				while(true){
+ 					
+					c_stream.avail_out=1;
+					err=c_stream.deflate(FZlib.Z_FINISH);      
+					if(err==FZlib.Z_STREAM_END)break;
+					CheckError(c_stream, err, "deflate");
+      
+				}
+					
+				err=c_stream.deflateEnd();      
+				CheckError(c_stream, err, "deflateEnd");
+
+				var d_stream:ZStream=new ZStream();
+				
+				d_stream.next_in=compr;
+				d_stream.next_in_index=0;
+				d_stream.next_out=uncompr;
+				d_stream.next_out_index=0;
+
+				err=d_stream.inflateInit();
+				CheckError(d_stream, err, "inflateInit");
+
+				while(d_stream.total_out<uncomprLen && d_stream.total_in<comprLen) {
+					
+					d_stream.avail_in=d_stream.avail_out=1; /* force small buffers */
+					err=d_stream.inflate(FZlib.Z_NO_FLUSH);
+					if(err==FZlib.Z_STREAM_END)
+						break;
+ 					CheckError(d_stream, err, "inflate");
+      
+				}
+				
+				err=d_stream.inflateEnd();
+  				CheckError(d_stream, err, "inflateEnd");
+
+				var i:int=0, j:int=0;
+				for(;i<hello.length; i++)
+					if(hello[i]==0)
+						break;
+						
+				for(;j<uncompr.length; j++)
+					if(uncompr[j]==0)
+						break;
+
+				if(i==j){
+					
+					for(i=0; i<j; i++)
+						if(hello[i]!=uncompr[i])
+							break;
+						
+					if(i==j){
+						var time:Number = (new Date()).getTime() - timeStart;
+						var result:String = uncompr.readUTFBytes(j);
+						output.text = "Test n°1\n";
+						output.text += "string: "+stringToCompress+"\n";
+						output.text += "uncompressed size: "+hello.length+"\n";	
+						output.text += "compressed size: "+c_stream.total_out+"\n";
+						output.text += "inflate(): "+result+"\n";
+						output.text += "time: "+time+"ms";		
+ 					}
+ 					
+				} else {
+					
+					output.text+="bad inflate";
+				
+    			}
+			}
+			
+
+			/*
+			 *
+			 * Second Test: deflate() with preset dictionary
+			 *
+			 */ 
+			private function SecondTest():void {
+				var timeStart:Number = (new Date()).getTime();
+  				
+				var dictionary:ByteArray = new ByteArray();
+				var stringToCompress:String = "hello";
+				dictionary.writeUTFBytes(stringToCompress);
+				dictionary.writeByte(0);
+				
+				var hello:ByteArray = new ByteArray();
+				var stringToCompress2:String = "hello, hello, hello, hello";
+				hello.writeUTFBytes(stringToCompress2);
+				hello.writeByte(0);
+				
+				var err:int;
+				var comprLen:int=40000;
+				var uncomprLen:int=comprLen;
+				var compr:ByteArray=new ByteArray();
+				var dictId:uint;
+				compr.length=comprLen;
+ 				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+
+				var c_stream:ZStream=new ZStream();
+				
+				err = c_stream.deflateInit(FZlib.Z_BEST_COMPRESSION);
+   				CheckError(c_stream, err, "deflateInit");
+   				
+   				err = c_stream.deflateSetDictionary(dictionary, dictionary.length);
+    			CheckError(c_stream, err, "deflateSetDictionary");
+
+    			dictId=c_stream.adler;
+
+				c_stream.next_out = compr;
+				c_stream.next_out_index = 0;
+				c_stream.avail_out = comprLen;
+		
+		
+				c_stream.next_in = hello;
+				c_stream.next_in_index = 0;
+				c_stream.avail_in = hello.length;
+
+				err = c_stream.deflate(FZlib.Z_FINISH);
+				if (err!=FZlib.Z_STREAM_END) {
+					output.text="deflate should report Z_STREAM_END";
+					throw new Error("deflate should report Z_STREAM_END", 1);
+				}
+
+				err = c_stream.deflateEnd();
+				CheckError(c_stream, err, "deflateEnd");
+
+				var d_stream:ZStream = new ZStream();
+
+				d_stream.next_in = compr;
+				d_stream.next_in_index = 0;
+				d_stream.avail_in = comprLen;
+		
+				err=d_stream.inflateInit();
+				CheckError(d_stream, err, "inflateInit");
+				d_stream.next_out=uncompr;
+				d_stream.next_out_index=0;
+				d_stream.avail_out=uncomprLen;
+
+				while(true){
+					err=d_stream.inflate(FZlib.Z_NO_FLUSH);
+					if(err==FZlib.Z_STREAM_END)
+	  					break;
+      
+					if(err==FZlib.Z_NEED_DICT){
+						if(d_stream.adler != dictId) {
+							output.text="unexpected dictionary";
+							throw new Error("unexpected dictionary", 1);
+						}
+						err=d_stream.inflateSetDictionary(dictionary, dictionary.length);
+					}
+					CheckError(d_stream, err, "inflate with dict");
+				}    
+
+				err=d_stream.inflateEnd();
+				CheckError(d_stream, err, "inflateEnd");
+
+				var j:int=0;
+				for(;j<uncompr.length; j++)
+					if(uncompr[j]==0)
+						break;
+				
+				var time:Number = (new Date()).getTime() - timeStart;
+				var result:String = uncompr.readUTFBytes(j);
+				output.text = "Test n°2\n";
+				output.text += "string: "+stringToCompress2+"\n";
+				output.text += "dico: "+stringToCompress+"\n";
+				output.text += "uncompressed size: "+hello.length+"\n";	
+				output.text += "compressed size: "+c_stream.total_out+"\n";
+				output.text += "after inflateSync(): "+result+"\n";
+				output.text += "time: "+time+"ms";		
+			}
+
+
+			/*
+			 *
+			 * Third Test: deflate() with full flush
+			 *
+			 */ 			
+			private function ThirdTest():void {
+				var timeStart:Number = (new Date()).getTime();
+				
+				var hello:ByteArray = new ByteArray();
+				var stringToCompress:String = "hello, hello";
+				hello.writeUTFBytes(stringToCompress);
+				hello.writeByte(0);
+				
+				var err:int;
+				var comprLen:int=40000;
+				var uncomprLen:int=comprLen;
+				var compr:ByteArray=new ByteArray();
+				compr.length=comprLen;
+ 				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+ 				
+ 				var len:int = hello.length;
+ 				
+ 				var c_stream:ZStream = new ZStream();
+
+ 				err=c_stream.deflateInit(FZlib.Z_DEFAULT_COMPRESSION);
+ 				CheckError(c_stream, err, "deflate");
+
+			    c_stream.next_in =hello;
+			    c_stream.next_in_index =0;
+			    c_stream.next_out = compr;
+			    c_stream.next_out_index = 0;
+			    c_stream.avail_in = 3;
+			    c_stream.avail_out = comprLen;
+			
+			    err = c_stream.deflate(FZlib.Z_FULL_FLUSH);
+			    CheckError(c_stream, err, "deflate");
+				
+				compr[3]++; // force an error in first compressed block
+				c_stream.avail_in=len-3;
+				
+				err = c_stream.deflate(FZlib.Z_FINISH);
+			    if(err!=FZlib.Z_STREAM_END){
+			      CheckError(c_stream, err, "deflate");
+			    }
+			    err = c_stream.deflateEnd();
+			    CheckError(c_stream, err, "deflateEnd");
+			    comprLen=(int)(c_stream.total_out);
+			
+			    var d_stream:ZStream = new ZStream();
+			
+			    d_stream.next_in=compr;
+			    d_stream.next_in_index=0;
+			    d_stream.avail_in=2;
+			
+			    err=d_stream.inflateInit();
+			    CheckError(d_stream, err, "inflateInit");
+			    d_stream.next_out=uncompr;
+			    d_stream.next_out_index=0;
+			    d_stream.avail_out=uncomprLen;
+			    
+			    err=d_stream.inflate(FZlib.Z_NO_FLUSH);
+			    CheckError(d_stream, err, "inflate");
+			
+				d_stream.avail_in=comprLen-2;
+
+			    err=d_stream.inflateSync();
+			    CheckError(d_stream, err, "inflateSync");
+
+			    err=d_stream.inflate(FZlib.Z_FINISH);
+			    if (err != FZlib.Z_DATA_ERROR) {
+			    	output.text="inflate should report DATA_ERROR";
+					throw new Error("inflate should report DATA_ERROR", 1);
+			    }
+
+			    err=d_stream.inflateEnd();
+			    CheckError(d_stream, err, "inflateEnd");
+
+			    var j:int=0;
+			    for(;j<uncompr.length; j++)
+			    	if(uncompr[j]==0)
+			    		break;
+
+				var time:Number = (new Date()).getTime() - timeStart;
+				var result:String = uncompr.readUTFBytes(j);
+				output.text = "Test n°3\n";
+				output.text += "string: "+stringToCompress+"\n";
+				output.text += "uncompressed size: "+hello.length+"\n";	
+				output.text += "compressed size: "+c_stream.total_out+"\n";
+				output.text += "after inflateSync(): hel"+result+"\n";
+				output.text += "time: "+time+"ms";	
+
+			}
+				
+			
+			/*
+			 *
+			 * Fourth Test: deflate() with large buffers and dynamic change of compression level
+			 *
+			 */ 
+			private function FourthTest():void {
+				var timeStart:Number = (new Date()).getTime();
+				
+				var err:int;
+				var comprLen:int=40000;
+				var uncomprLen:int=comprLen;
+				var compr:ByteArray=new ByteArray();
+				compr.length=comprLen;
+ 				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+ 				
+ 				var c_stream:ZStream = new ZStream();
+
+    			err=c_stream.deflateInit(FZlib.Z_BEST_SPEED);
+    			CheckError(c_stream, err, "deflateInit");
+
+ 				c_stream.next_out=compr;
+ 				c_stream.next_out_index=0;
+				c_stream.avail_out=comprLen;
+
+    			// At this point, uncompr is still mostly zeroes, so it should compress
+    			// very well:
+				c_stream.next_in=uncompr;
+    			c_stream.avail_in=uncomprLen;
+    			err=c_stream.deflate(FZlib.Z_NO_FLUSH);
+    			CheckError(c_stream, err, "deflate");
+    			if(c_stream.avail_in!=0) {
+    				output.text="deflate not greedy";
+					throw new Error("deflate not greedy", 1);
+    			}
+
+    			// Feed in already compressed data and switch to no compression:
+    			c_stream.deflateParams(FZlib.Z_NO_COMPRESSION, FZlib.Z_DEFAULT_STRATEGY);
+    			c_stream.next_in=compr;
+    			c_stream.next_in_index=0;
+    			c_stream.avail_in=comprLen/2;
+    			err=c_stream.deflate(FZlib.Z_NO_FLUSH);
+    			CheckError(c_stream, err, "deflate");
+
+    			// Switch back to compressing mode:
+ 				c_stream.deflateParams(FZlib.Z_BEST_COMPRESSION, FZlib.Z_FILTERED);
+    			c_stream.next_in=uncompr;
+ 				c_stream.next_in_index=0;
+				c_stream.avail_in=uncomprLen;
+				err=c_stream.deflate(FZlib.Z_NO_FLUSH);
+				CheckError(c_stream, err, "deflate");
+
+				err=c_stream.deflate(FZlib.Z_FINISH);
+				if(err!=FZlib.Z_STREAM_END) {
+					output.text="deflate should report Z_STREAM_END";
+					throw new Error("deflate should report Z_STREAM_END", 1);
+ 				}
+  				err=c_stream.deflateEnd();
+ 				CheckError(c_stream, err, "deflateEnd");
+				var d_stream:ZStream = new ZStream();
+
+  				d_stream.next_in=compr;
+ 				d_stream.next_in_index=0;
+				d_stream.avail_in=comprLen;
+
+				err=d_stream.inflateInit();
+				CheckError(d_stream, err, "inflateInit");
+
+				while(true){
+   					d_stream.next_out=uncompr;
+  					d_stream.next_out_index=0;
+					d_stream.avail_out=uncomprLen;
+					err=d_stream.inflate(FZlib.Z_NO_FLUSH);
+					if(err==FZlib.Z_STREAM_END)
+						break;
+  					CheckError(d_stream, err, "inflate large");
+ 				}
+
+				err=d_stream.inflateEnd();
+ 				CheckError(d_stream, err, "inflateEnd");
+
+ 				if (d_stream.total_out != (2*uncomprLen + comprLen/2)) {
+ 					output.text="bad large inflate: "+d_stream.total_out;
+					throw new Error("bad large inflate: "+d_stream.total_out, 1);
+				} else {
+					var time:Number = (new Date()).getTime() - timeStart;
+					output.text = "Test n°4\n";
+					output.text += "large_inflate(): OK\n";
+					output.text += "uncompressed size: "+c_stream.total_in+"\n";
+					output.text += "compressed size: "+c_stream.total_out+"\n";
+					output.text += "time: "+time+"ms";	
+ 				}
+
+			}
+			
+
+			/*
+			 *
+			 * Fifth Test: ByteArray.compress(), decompress by FZlib
+			 *
+			 */ 
+			private function FifthTest():void {
+				var timeStart:Number = (new Date()).getTime();
+				
+				var err:int;
+				var uncomprLen:int=40000, comprLen:int=uncomprLen;
+				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+				
+				var inputStream:ByteArray = new ByteArray();
+				var c_inputStream:ByteArray = new ByteArray();
+				var stringToCompress:String = "hello, hello, hello";
+				inputStream.writeUTFBytes(stringToCompress);
+				inputStream.writeByte(0);
+				c_inputStream.writeUTFBytes(stringToCompress);
+				c_inputStream.writeByte(0);
+				
+				c_inputStream.compress();
+
+				var d_stream:ZStream=new ZStream();
+				
+				d_stream.next_in=c_inputStream;
+				d_stream.next_in_index=0;
+				d_stream.next_out=uncompr;
+				d_stream.next_out_index=0;
+				
+				err=d_stream.inflateInit();
+				CheckError(d_stream, err, "inflateInit");
+
+				while(d_stream.total_out<uncomprLen && d_stream.total_in<comprLen) {
+					
+					d_stream.avail_in=d_stream.avail_out=1; /* force small buffers */
+					err=d_stream.inflate(FZlib.Z_NO_FLUSH);
+					if(err==FZlib.Z_STREAM_END)
+						break;
+ 					CheckError(d_stream, err, "inflate");
+      
+				}
+				
+				err=d_stream.inflateEnd();
+  				CheckError(d_stream, err, "inflateEnd");
+
+				var i:int=0, j:int=0;
+				for(;i<inputStream.length; i++)
+					if(inputStream[i]==0)
+						break;
+						
+				for(;j<uncompr.length; j++)
+					if(uncompr[j]==0)
+						break;
+
+				if(i==j){
+					
+					for(i=0; i<j; i++)
+						if(inputStream[i]!=uncompr[i])
+							break;
+						
+					if(i==j){
+						var time:Number = (new Date()).getTime() - timeStart;
+						var result:String = uncompr.readUTFBytes(j);
+						output.text = "Test n°5\n";
+						output.text += "string: "+stringToCompress+"\n";
+						output.text += "uncompressed size: "+inputStream.length+"\n";	
+						output.text += "compressed size: "+c_inputStream.length+"\n";
+						output.text += "inflate(): "+result+"\n";
+						output.text += "time: "+time+"ms";		
+ 					}
+ 					
+				} else {
+					
+					output.text+="bad inflate";
+				
+    			}
+			
+			}
+			
+			
+			/*
+			 *
+			 * Sixth Test: compress by FZlib, ByteArray.uncompress()
+			 *
+			 */ 
+			private function SixthTest():void {
+				var timeStart:Number = (new Date()).getTime();
+				
+				var hello:ByteArray = new ByteArray();
+				var stringToCompress:String = "hello, hello, hello";
+				hello.writeUTFBytes(stringToCompress);
+				
+				var err:int;
+				var comprLen:int=40000;
+				var uncomprLen:int=comprLen;
+				var compr:ByteArray=new ByteArray();
+				compr.length=comprLen;
+ 				var uncompr:ByteArray=new ByteArray();
+ 				uncompr.length = uncomprLen;
+
+				var c_stream:ZStream=new ZStream();
+				
+				err=c_stream.deflateInit(FZlib.Z_BEST_COMPRESSION);
+   				CheckError(c_stream, err, "deflateInit");
+   				
+   				c_stream.next_in=hello;
+   				c_stream.next_in_index=0;
+
+   				c_stream.next_out=compr;
+   				c_stream.next_out_index=0;
+
+  				while(c_stream.total_in!=hello.length && c_stream.total_out<comprLen){
+  					
+					c_stream.avail_in=c_stream.avail_out=1; // force small buffers
+					err=c_stream.deflate(FZlib.Z_NO_FLUSH);
+					CheckError(c_stream, err, "deflate");
+					
+				}
+
+ 				while(true){
+ 					
+					c_stream.avail_out=1;
+					err=c_stream.deflate(FZlib.Z_FINISH);      
+					if(err==FZlib.Z_STREAM_END)break;
+					CheckError(c_stream, err, "deflate");
+      
+				}
+					
+				err=c_stream.deflateEnd();      
+				CheckError(c_stream, err, "deflateEnd");
+	
+				c_stream.next_out.uncompress();
+
+				if(c_stream.next_out.toString() == stringToCompress){
+					
+						var time:Number = (new Date()).getTime() - timeStart;
+						output.text = "Test n°6\n";
+						output.text += "string: "+stringToCompress+"\n";
+						output.text += "uncompressed size: "+stringToCompress.length+"\n";	
+						output.text += "compressed size: "+c_stream.total_out+"\n";
+						output.text += "inflate(): "+c_stream.next_out.toString()+"\n";
+						output.text += "time: "+time+"ms";	
+							
+ 				} else output.text += "bad inflate";
+				
+			}
+
+		]]>
+	</mx:Script>
+
+	<mx:HBox>
+		<mx:Text text="First Test: deflate() with small buffers" />
+		<mx:Button label="Test n°1" click="FirstTest()" />
+	</mx:HBox>
+	
+	<mx:HBox>
+		<mx:Text text="Second Test: deflate() with preset dictionary" />
+		<mx:Button label="Test n°2" click="SecondTest()" />
+	</mx:HBox>
+	
+	<mx:HBox>
+		<mx:Text text="Third Test: deflate() with full flush" />
+		<mx:Button label="Test n°3" click="ThirdTest()" />
+	</mx:HBox>
+	
+	<mx:HBox>
+		<mx:Text text="Fourth Test: deflate() with large buffers" />
+		<mx:Button label="Test n°4" click="FourthTest()" />
+	</mx:HBox>	
+
+	<mx:HBox>
+		<mx:Text text="Fifth Test: ByteArray.compress(), decompress by FZlib" />
+		<mx:Button label="Test n°5" click="FifthTest()" />
+	</mx:HBox>	
+
+	<mx:HBox>
+		<mx:Text text="Sixth Test: compress by FZlib, ByteArray.uncompress()" />
+		<mx:Button label="Test n°6" click="SixthTest()" />
+	</mx:HBox>	
+		
+	<mx:Text text="Output:" />
+	<mx:Box borderStyle="solid">
+		<mx:Text id="output" />
+	</mx:Box>
+	
+	
+	
+</mx:Application>
