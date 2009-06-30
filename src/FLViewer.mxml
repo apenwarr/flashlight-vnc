@@ -23,14 +23,15 @@
 			[Bindable] public var host:String =  'localhost';
 			[Bindable] public var port:int = 5900;
 			[Bindable] public var password:String = null;
-			[Bindable] public var securityPort:int =  -1;
-			[Bindable] public var shared:Boolean =  false;
-			[Bindable] public var viewOnly:Boolean =  false;
+			[Bindable] public var securityPort:int = -1;
+			[Bindable] public var shared:Boolean = false;
+			[Bindable] public var viewOnly:Boolean = false;
 			
 			[Bindable] private var debug:Boolean = false;
 			[Bindable] private var logFunction:String = null;
-			[Bindable] private var autoConnect:Boolean =  false;
-			[Bindable] private var autoReconnect:Boolean =  false;
+			[Bindable] private var autoConnect:Boolean = false;
+			[Bindable] private var autoReconnect:Boolean = false;
+			[Bindable] private var connectionId:String = null;
 			[Bindable] private var toolBar:Boolean =  true;
 			
 			private function tobool(x:String,def:Boolean):Boolean {
@@ -51,6 +52,7 @@
 				logFunction = parameters.logFunction ? parameters.logFunction : null;
 				autoConnect = tobool(parameters.autoConnect, autoConnect);
 				autoReconnect = tobool(parameters.autoReconnect, autoReconnect);
+				connectionId = parameters.connectionId;
 				toolBar = tobool(parameters.toolBar, toolBar);
 				
 				if (debug) {
@@ -112,7 +114,8 @@
 			password="{password}"
 			shared="{shared}"
 			viewOnly="{viewOnly}"
-			autoReconnect="{autoReconnect}" />
+			autoReconnect="{autoReconnect}"
+			connectionId="{connectionId}" />
 			
 		<mx:HBox width="100%" direction="horizontal" bottom="0"
 			backgroundColor="#CCCCCC" alpha="0.8"

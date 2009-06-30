@@ -70,6 +70,7 @@ package com.wizhelp.flashlight.viewer
 		public var securityPort:int;
 		public var shared:Boolean;
 		public var autoReconnect:Boolean;
+		public var connectionId:String;
 		[Bindable] public var connected:Boolean = false;
 		
 		private var viewerThread:ViewerThread;
@@ -161,6 +162,12 @@ package com.wizhelp.flashlight.viewer
 		
 		private function handleConnect(event:Event):void {
 			logger.debug(">> handleConnect()");
+			logger.debug("ConnectionId is: " + connectionId);
+			if (connectionId) {
+				socket.writeUTFBytes(connectionId + "\r\n");
+				socket.flush();
+			}
+					
 			
 			connected = true;
 			
