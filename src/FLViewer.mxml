@@ -31,6 +31,7 @@
 			[Bindable] private var logFunction:String = null;
 			[Bindable] private var autoConnect:Boolean = false;
 			[Bindable] private var autoReconnect:Boolean = false;
+			[Bindable] private var disconnectCb:String = null;
 			[Bindable] private var connectionId:String = null;
 			[Bindable] private var toolBar:Boolean =  true;
 			
@@ -52,6 +53,7 @@
 				logFunction = parameters.logFunction ? parameters.logFunction : null;
 				autoConnect = tobool(parameters.autoConnect, autoConnect);
 				autoReconnect = tobool(parameters.autoReconnect, autoReconnect);
+				disconnectCb = parameters.disconnectCb;
 				connectionId = parameters.connectionId;
 				toolBar = tobool(parameters.toolBar, toolBar);
 				
@@ -119,6 +121,7 @@
 			shared="{shared}"
 			viewOnly="{viewOnly}"
 			autoReconnect="{autoReconnect}"
+			disconnectCb="{disconnectCb}"
 			connectionId="{connectionId}" />
 			
 		<mx:HBox id="toolBarBox" width="100%" direction="horizontal" bottom="0"

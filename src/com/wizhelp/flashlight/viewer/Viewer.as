@@ -42,6 +42,7 @@ package com.wizhelp.flashlight.viewer
 	import flash.events.MouseEvent;
 	import flash.events.SecurityErrorEvent;
 	import flash.events.TextEvent;
+	import flash.external.ExternalInterface;
 	import flash.geom.Point;
 	import flash.net.Socket;
 	import flash.system.Security;
@@ -70,6 +71,7 @@ package com.wizhelp.flashlight.viewer
 		public var securityPort:int;
 		public var shared:Boolean;
 		public var autoReconnect:Boolean;
+		public var disconnectCb:String;
 		public var connectionId:String;
 		[Bindable] public var connected:Boolean = false;
 		
@@ -154,10 +156,22 @@ package com.wizhelp.flashlight.viewer
 			} catch (e:Error) {
 				logger.error("Unexpected error in disconnect : "+e);
 			}
+
+			callDisconnectCb();
 			
 			logger.debug("<< disconnect()");
 			reset();
 			Mouse.show();
+		}
+
+		private function callDisconnectCb():void
+		{
+			logger.debug(">> callDisconnectCb()");
+			logger.debug("disconnectCb=" + disconnectCb);
+			if (disconnectCb != null) {
+				ExternalInterface.call(disconnectCb);
+			}
+			logger.debug("<< callDisconnectCb()");
 		}
 		
 		private function handleConnect(event:Event):void {
