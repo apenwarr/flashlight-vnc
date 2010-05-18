@@ -878,6 +878,7 @@ package com.wizhelp.flashlight.codec
 				rfbReader.updateRect,
 				jpegImage.getPixels(jpegImage.rect)
 				);
+			vnc.handleFrameBufferUpdated();
 			
 			jpgLoader.unload();
 			
